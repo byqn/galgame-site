@@ -213,6 +213,70 @@ function handleSendCode(req, res) {
   }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
 }
 
+/* ------------------------------ 忘记密码 ------------------------------ */
+function handleResetCode(req, res) {
+  return readBody(req).then(async (buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return sendJson(res, 400, { ok: false, error: '邮箱格式不正确' });
+    if (!findUserByEmail(email)) return sendJson(res, 404, { ok: false, error: '该邮箱还没有注册过' });
+
+    const now = Date.now();
+    const recent = readJson(CODES_FILE, []).find((c) => c.email === email && c.sentAt && now - c.sentAt < CODE_COOLDOWN_MS);
+    if (recent) {
+      const wait = Math.ceil((CODE_COOLDOWN_MS - (now - recent.sentAt)) / 1000);
+      return sendJson(res, 429, { ok: false, error: `发送太频繁，请 ${wait} 秒后再试` });
+    }
+
+    const code = issueCode(email);
+    let result;
+    try {
+      result = await sendMail({
+        to: email,
+        subject: '【小萝莉の资源站】重置密码验证码',
+        text: `你的重置密码验证码是 ${code}，10 分钟内有效。\n如果不是你本人操作，请忽略这封邮件。`,
+      });
+    } catch (e) {
+      console.error('[mail] 发送失败:', e.message);
+      return sendJson(res, 500, { ok: false, error: '邮件发送失败：' + e.message });
+    }
+
+    const payload = { ok: true, mode: result.mode, expiresIn: CODE_TTL_MS / 1000 };
+    if (!result.sent && isLocalRequest(req)) payload.devCode = code;
+    sendJson(res, 200, payload);
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
+function handleResetPassword(req, res) {
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
+    const password = String(body.password || '');
+
+    if (password.length < 6) return sendJson(res, 400, { ok: false, error: '新密码至少 6 位' });
+    if (!code) return sendJson(res, 400, { ok: false, error: '请填写邮箱验证码' });
+
+    const users = readJson(USERS_FILE, []);
+    const user = users.find((u) => u.email && u.email.toLowerCase() === email);
+    if (!user) return sendJson(res, 404, { ok: false, error: '该邮箱还没有注册过' });
+    if (!verifyCode(email, code)) return sendJson(res, 400, { ok: false, error: '验证码错误或已过期' });
+
+    user.salt = crypto.randomBytes(16).toString('hex');
+    user.passHash = hashPassword(password, user.salt);
+    writeJson(USERS_FILE, users);
+    // 重置后让该账号所有旧登录失效
+    writeJson(SESSIONS_FILE, readSessions().filter((s) => s.userId !== user.id));
+
+    console.log(`[auth] 重置密码成功：${user.username}`);
+    sendJson(res, 200, { ok: true });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
 /* ------------------------------ 用户与会话 ------------------------------ */
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 64).toString('hex');
@@ -461,6 +525,107 @@ function handleUploadPost(req, res) {
   }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
 }
 
+/* ------------------------------ 管理：编辑 / 删除 ------------------------------ */
+function removeFileIfInside(dir, relUrl) {
+  try {
+    const target = path.join(ROOT, decodeURIComponent(String(relUrl || '')));
+    if (target.startsWith(dir) && fs.existsSync(target) && fs.statSync(target).isFile()) {
+      fs.unlinkSync(target);
+      return true;
+    }
+  } catch { /* 忽略 */ }
+  return false;
+}
+
+function handleManage(req, res) {
+  if (!isLocalRequest(req)) {
+    return sendJson(res, 403, { ok: false, error: '管理接口仅允许通过 localhost 访问' });
+  }
+
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const action = String(body.action || '');
+    const id = String(body.id || '');
+    const data = body.data || {};
+
+    // ---------- 作品 ----------
+    if (action === 'delete-game') {
+      const list = readJson(GAMES_FILE, []);
+      const idx = list.findIndex((g) => g.id === id);
+      if (idx < 0) return sendJson(res, 404, { ok: false, error: '作品不存在' });
+      const [removed] = list.splice(idx, 1);
+      writeJson(GAMES_FILE, list);
+      fs.unlink(path.join(COVER_DIR, removed.id + '.jpg'), () => {});
+      if (removed.file && removed.file.url) removeFileIfInside(FILES_DIR, removed.file.url);
+      console.log(`[manage] 删除作品「${removed.title}」`);
+      return sendJson(res, 200, { ok: true, total: list.length });
+    }
+
+    if (action === 'update-game') {
+      const list = readJson(GAMES_FILE, []);
+      const g = list.find((x) => x.id === id);
+      if (!g) return sendJson(res, 404, { ok: false, error: '作品不存在' });
+
+      ['title', 'originalTitle', 'circle', 'version', 'size', 'summary', 'releaseDate', 'views']
+        .forEach((k) => { if (data[k] != null) g[k] = String(data[k]).trim(); });
+      if (data.rating != null) g.rating = Math.min(10, Math.max(0, Number(data.rating) || 0));
+      if (data.tags != null) g.tags = toArray(data.tags, g.tags);
+      if (data.platforms != null) g.platforms = toArray(data.platforms, g.platforms);
+      if (data.languages != null) g.languages = toArray(data.languages, g.languages);
+      if (data.screenshots != null) g.screenshots = toArray(data.screenshots, g.screenshots);
+      if (typeof data.isNew === 'boolean') g.isNew = data.isNew;
+      if (Array.isArray(data.downloads)) {
+        g.downloads = data.downloads
+          .filter((d) => d && (d.label || d.url))
+          .map((d) => ({
+            label: String(d.label || '下载').trim(),
+            url: String(d.url || '#').trim(),
+            code: String(d.code || '—').trim(),
+          }));
+      }
+      g.updatedAt = new Date().toISOString().slice(0, 10);
+      writeJson(GAMES_FILE, list);
+      console.log(`[manage] 更新作品「${g.title}」`);
+      return sendJson(res, 200, { ok: true });
+    }
+
+    // ---------- 资源 / 教程 ----------
+    if (action === 'delete-post') {
+      const list = readJson(POSTS_FILE, []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx < 0) return sendJson(res, 404, { ok: false, error: '资源不存在' });
+      const [removed] = list.splice(idx, 1);
+      writeJson(POSTS_FILE, list);
+      console.log(`[manage] 删除资源「${removed.title}」`);
+      return sendJson(res, 200, { ok: true, total: list.length });
+    }
+
+    if (action === 'update-post') {
+      const list = readJson(POSTS_FILE, []);
+      const p = list.find((x) => x.id === id);
+      if (!p) return sendJson(res, 404, { ok: false, error: '资源不存在' });
+
+      ['title', 'excerpt', 'author'].forEach((k) => { if (data[k] != null) p[k] = String(data[k]).trim(); });
+      if (data.category && POST_CATEGORIES.includes(data.category)) p.category = data.category;
+      if (data.gameId !== undefined) p.gameId = data.gameId || null;
+      if (data.tags != null) p.tags = toArray(data.tags, p.tags);
+      if (data.body != null) {
+        const lines = (Array.isArray(data.body) ? data.body : String(data.body).split('\n'))
+          .map((s) => String(s).trim()).filter(Boolean);
+        if (!lines.length) return sendJson(res, 400, { ok: false, error: '正文不能为空' });
+        p.body = lines;
+      }
+      writeJson(POSTS_FILE, list);
+      console.log(`[manage] 更新资源「${p.title}」`);
+      return sendJson(res, 200, { ok: true });
+    }
+
+    sendJson(res, 400, { ok: false, error: '未知操作：' + action });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
 /* ------------------------------ 文件上传（流式） ------------------------------ */
 function safeFileName(name) {
   const base = path.basename(String(name || 'file')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
@@ -623,11 +788,20 @@ http.createServer((req, res) => {
   if (urlPath === '/api/upload-post' && req.method === 'POST') {
     return handleUploadPost(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
   }
+  if (urlPath === '/api/manage' && req.method === 'POST') {
+    return handleManage(req, res);
+  }
   if (urlPath === '/api/files' && req.method === 'GET') {
     return sendJson(res, 200, listFiles());
   }
   if (urlPath === '/api/send-code' && req.method === 'POST') {
     return handleSendCode(req, res);
+  }
+  if (urlPath === '/api/reset-code' && req.method === 'POST') {
+    return handleResetCode(req, res);
+  }
+  if (urlPath === '/api/reset-password' && req.method === 'POST') {
+    return handleResetPassword(req, res);
   }
   if (urlPath === '/api/register' && req.method === 'POST') {
     return handleRegister(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));

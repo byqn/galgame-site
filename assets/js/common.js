@@ -172,6 +172,7 @@
     { href: 'resource.html', text: '资源', key: 'resource' },
     { href: 'doc.html', text: '文档', key: 'doc' },
     { href: 'upload.html', text: '上传', key: 'upload' },
+    { href: 'manage.html', text: '管理', key: 'manage' },
   ];
 
   function renderHeader(active) {

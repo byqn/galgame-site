@@ -741,6 +741,22 @@ a.gtag:hover { color: #ffdce8; border-color: rgba(255, 122, 162, 0.5); }
   font-family: ui-monospace, Consolas, monospace;
   color: #ffc2d6;
 }
+.modal-wide { width: min(760px, 96vw); max-height: 88vh; overflow-y: auto; text-align: left; }
+
+/* ---------------- 内容管理 ---------------- */
+.manage-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 12px; margin: 0 -12px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 11px;
+  transition: background 0.18s;
+}
+.manage-row:last-child { border-bottom: none; }
+.manage-row:hover { background: var(--card-2); }
+.manage-row .li-title { font-size: 15px; font-weight: 600; }
+.manage-row .li-meta { font-size: 12.5px; color: var(--muted-2); margin-top: 3px; }
+.btn-danger { border-color: rgba(248, 113, 113, 0.35); color: #fca5a5; }
+.btn-danger:hover { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.6); color: #fecaca; }
 
 /* ---------------- 导航用户区 ---------------- */
 .user-area { display: flex; align-items: center; gap: 8px; }

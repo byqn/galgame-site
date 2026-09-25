@@ -49,12 +49,21 @@
 
   function applyMode() {
     const isLogin = mode === 'login';
+    const isReset = mode === 'reset';
     const show = (sel, display) => { const el = $(sel); if (el) el.style.display = display; };
+
     show('#au-email-row', isLogin ? 'none' : 'block');
     show('#au-code-row', isLogin ? 'none' : 'flex');
+    show('#au-username-row', isReset ? 'none' : 'block');
     show('#au-confirm-row', isLogin ? 'none' : 'block');
+
+    const pwdLabel = $('#au-password') ? $('#au-password').closest('label') : null;
+    if (pwdLabel && pwdLabel.childNodes[0]) pwdLabel.childNodes[0].nodeValue = isReset ? '新密码' : '密码';
+    const confirmLabel = $('#au-confirm') ? $('#au-confirm').closest('label') : null;
+    if (confirmLabel && confirmLabel.childNodes[0]) confirmLabel.childNodes[0].nodeValue = isReset ? '确认新密码' : '确认密码';
+
     const btn = $('#au-submit');
-    if (btn) btn.textContent = isLogin ? '登录' : '注册并登录';
+    if (btn) btn.textContent = isLogin ? '登录' : (isReset ? '重置密码' : '注册并登录');
     const pwd = $('#au-password');
     if (pwd) pwd.setAttribute('autocomplete', isLogin ? 'current-password' : 'new-password');
     document.querySelectorAll('.auth-tabs button').forEach((b) => {
@@ -68,6 +77,7 @@
       <div class="auth-tabs">
         <button type="button" data-mode="login">登录</button>
         <button type="button" data-mode="register">注册</button>
+        <button type="button" data-mode="reset">忘记密码</button>
       </div>
       <form class="auth-form" id="auth-form" autocomplete="off">
         <label id="au-email-row">邮箱
@@ -79,7 +89,7 @@
           </label>
           <button type="button" class="btn small-btn" id="au-send">获取验证码</button>
         </div>
-        <label>用户名
+        <label id="au-username-row">用户名
           <input type="text" id="au-username" placeholder="3–20 位中文 / 字母 / 数字 / _ / -">
         </label>
         <label>密码
@@ -117,7 +127,7 @@
     btn.disabled = true;
     btn.textContent = '发送中…';
     try {
-      const res = await fetch('api/send-code', {
+      const res = await fetch(mode === 'reset' ? 'api/reset-code' : 'api/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -166,19 +176,34 @@
     const email = $('#au-email') ? $('#au-email').value.trim() : '';
     const code = $('#au-code') ? $('#au-code').value.trim() : '';
 
-    if (mode === 'register') {
+    const isReset = mode === 'reset';
+
+    if (mode !== 'login') {
       if (!/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(email)) { setMsg('请填写有效的邮箱地址', 'error'); return; }
       if (!code) { setMsg('请先获取并填写邮箱验证码', 'error'); return; }
     }
-    if (!username) { setMsg('请填写用户名', 'error'); return; }
-    if (password.length < 6) { setMsg('密码至少 6 位', 'error'); return; }
-    if (mode === 'register' && password !== confirm) { setMsg('两次输入的密码不一致', 'error'); return; }
+    if (!isReset && !username) { setMsg('请填写用户名', 'error'); return; }
+    if (password.length < 6) { setMsg(isReset ? '新密码至少 6 位' : '密码至少 6 位', 'error'); return; }
+    if (mode !== 'login' && password !== confirm) { setMsg('两次输入的密码不一致', 'error'); return; }
 
     const btn = $('#au-submit');
     btn.disabled = true;
-    setMsg(mode === 'login' ? '登录中…' : '注册中…', '');
+    setMsg(mode === 'login' ? '登录中…' : (isReset ? '重置中…' : '注册中…'), '');
 
     try {
+      if (isReset) {
+        const res = await fetch('api/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code, password }),
+        });
+        const info = await res.json();
+        if (!info.ok) throw new Error(info.error || '重置失败');
+        setMsg('密码已重置，请用新密码登录', 'ok');
+        setTimeout(() => { mode = 'login'; authView(); setMsg('', ''); }, 1200);
+        return;
+      }
+
       const res = await fetch('api/' + (mode === 'login' ? 'login' : 'register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

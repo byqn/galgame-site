@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# 数据与上传文件目录不参与抓取
+Disallow: /data/
+Disallow: /files/
+Disallow: /deploy/
+Disallow: /_tmp/
+
+Sitemap: https://byqn.github.io/galgame-site/sitemap.xml

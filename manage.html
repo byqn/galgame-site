@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>内容管理 - 小萝莉の资源站</title>
+  <meta name="description" content="管理已上传的作品与资源：编辑、删除。">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#ff7aa2">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/upload.css">
+</head>
+<body data-page="manage">
+  <header id="topbar"></header>
+
+  <main class="wrap">
+    <section class="section">
+      <div class="section-head">
+        <h2>内容管理</h2>
+        <span class="count" id="mg-count">—</span>
+        <a class="more" href="upload.html">上传新内容 →</a>
+      </div>
+
+      <div class="auth-tabs" id="mg-tabs" style="max-width:430px;margin-bottom:16px">
+        <button type="button" data-tab="games" class="on">作品</button>
+        <button type="button" data-tab="posts">资源 / 教程</button>
+      </div>
+
+      <div id="mg-tip" class="notice-bar" style="display:none"></div>
+
+      <div class="panel" style="margin-top:0" id="mg-list"></div>
+    </section>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/manage.js"></script>
+</body>
+</html>
