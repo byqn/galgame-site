@@ -49,8 +49,10 @@
 
   function applyMode() {
     const isLogin = mode === 'login';
-    const confirmRow = $('#au-confirm-row');
-    if (confirmRow) confirmRow.style.display = isLogin ? 'none' : 'block';
+    const show = (sel, display) => { const el = $(sel); if (el) el.style.display = display; };
+    show('#au-email-row', isLogin ? 'none' : 'block');
+    show('#au-code-row', isLogin ? 'none' : 'flex');
+    show('#au-confirm-row', isLogin ? 'none' : 'block');
     const btn = $('#au-submit');
     if (btn) btn.textContent = isLogin ? '登录' : '注册并登录';
     const pwd = $('#au-password');
@@ -68,6 +70,15 @@
         <button type="button" data-mode="register">注册</button>
       </div>
       <form class="auth-form" id="auth-form" autocomplete="off">
+        <label id="au-email-row">邮箱
+          <input type="email" id="au-email" placeholder="用于接收验证码，例如 you@qq.com">
+        </label>
+        <div class="code-row" id="au-code-row">
+          <label>邮箱验证码
+            <input type="text" id="au-code" placeholder="6 位数字" maxlength="6" inputmode="numeric">
+          </label>
+          <button type="button" class="btn small-btn" id="au-send">获取验证码</button>
+        </div>
         <label>用户名
           <input type="text" id="au-username" placeholder="3–20 位中文 / 字母 / 数字 / _ / -">
         </label>
@@ -81,12 +92,68 @@
         <button class="btn btn-primary" type="submit" id="au-submit">登录</button>
       </form>`;
 
+    $('#au-send').addEventListener('click', sendCode);
+
     document.querySelectorAll('.auth-tabs button').forEach((b) => {
       b.addEventListener('click', () => { mode = b.dataset.mode; applyMode(); setMsg(''); });
     });
     applyMode();
     $('#auth-form').addEventListener('submit', submit);
     $('#au-username').focus();
+  }
+
+  let sending = false;
+
+  async function sendCode() {
+    const email = $('#au-email').value.trim();
+    if (!/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(email)) {
+      setMsg('请先填写有效的邮箱地址', 'error');
+      $('#au-email').focus();
+      return;
+    }
+    const btn = $('#au-send');
+    if (sending || btn.disabled) return;
+    sending = true;
+    btn.disabled = true;
+    btn.textContent = '发送中…';
+    try {
+      const res = await fetch('api/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const info = await res.json();
+      if (!info.ok) throw new Error(info.error || '发送失败');
+      if (info.devCode) {
+        $('#au-code').value = info.devCode;
+        setMsg('本机模式：验证码已自动填入（' + info.devCode + '）。配置 SMTP 后会发到邮箱。', 'ok');
+      } else {
+        setMsg('验证码已发送到 ' + email + '，10 分钟内有效', 'ok');
+      }
+      countdown(60);
+    } catch (err) {
+      setMsg(err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = '获取验证码';
+    } finally {
+      sending = false;
+    }
+  }
+
+  function countdown(sec) {
+    const btn = $('#au-send');
+    let n = sec;
+    btn.textContent = n + ' 秒后重发';
+    const timer = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(timer);
+        btn.disabled = false;
+        btn.textContent = '重新发送';
+      } else {
+        btn.textContent = n + ' 秒后重发';
+      }
+    }, 1000);
   }
 
   async function submit(e) {
@@ -96,7 +163,13 @@
     const username = $('#au-username').value.trim();
     const password = $('#au-password').value;
     const confirm = $('#au-confirm') ? $('#au-confirm').value : password;
+    const email = $('#au-email') ? $('#au-email').value.trim() : '';
+    const code = $('#au-code') ? $('#au-code').value.trim() : '';
 
+    if (mode === 'register') {
+      if (!/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(email)) { setMsg('请填写有效的邮箱地址', 'error'); return; }
+      if (!code) { setMsg('请先获取并填写邮箱验证码', 'error'); return; }
+    }
     if (!username) { setMsg('请填写用户名', 'error'); return; }
     if (password.length < 6) { setMsg('密码至少 6 位', 'error'); return; }
     if (mode === 'register' && password !== confirm) { setMsg('两次输入的密码不一致', 'error'); return; }
@@ -109,7 +182,7 @@
       const res = await fetch('api/' + (mode === 'login' ? 'login' : 'register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(mode === 'login' ? { username, password } : { username, password, email, code }),
       });
       const info = await res.json();
       if (!info.ok) throw new Error(info.error || '操作失败');

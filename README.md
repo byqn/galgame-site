@@ -1,6 +1,6 @@
 # galgame-site
 
-> 弄着玩 —— 一站式 Galgame 资源索引站
+> 弄着玩 —— 小萝莉の资源站站
 
 纯静态站点：零构建、零依赖、无后端。双击 `index.html` 就能跑，也可直接部署到 GitHub Pages。
 

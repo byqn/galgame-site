@@ -181,8 +181,8 @@
     host.innerHTML = `
       <div class="wrap topbar-inner">
         <a class="logo" href="index.html">
-          <span class="mark">G</span>
-          <span><b>Galgame</b> <span>资源站</span></span>
+          <span class="mark">萝</span>
+          <span><b>小萝莉</b> <span>の资源站</span></span>
         </a>
         <nav class="menu">
           ${NAV.map((n) => `<a href="${n.href}" class="${n.key === active ? 'active' : ''}">${n.text}</a>`).join('')}

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>登录 / 注册 - Galgame 资源站</title>
-  <meta name="description" content="注册或登录 Galgame 资源站账号。">
+  <title>登录 / 注册 - 小萝莉の资源站</title>
+  <meta name="description" content="注册或登录 小萝莉の资源站账号。">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body data-page="login">
@@ -19,9 +19,11 @@
       <div class="panel">
         <h3>说明</h3>
         <ul class="auth-hint" style="margin:0;padding-left:20px">
-          <li>账号只保存在你自己的服务器上（<code>data/users.json</code>），密码用 scrypt 加盐哈希存储，不保存明文。</li>
-          <li>登录状态通过浏览器本地 token 维持，有效期 30 天。</li>
-          <li><b>注册 / 登录需要有后端</b>：本机执行 <code>node deploy/serve.js 8080</code> 后访问 <code>http://localhost:8080/login.html</code>。部署到 GitHub Pages 的静态版本没有后端，无法注册登录。</li>
+          <li>注册需要<b>邮箱验证码</b>：填好邮箱后点「获取验证码」，10 分钟内有效，同一邮箱 60 秒内只能发一次。</li>
+          <li><b>没配置 SMTP 时是「本机模式」</b>：不会真的发邮件，验证码会直接显示在页面提示里（仅 localhost 可见）。要发真邮件，在 <code>data/mail.json</code> 填好邮箱 SMTP 信息并执行 <code>npm install nodemailer</code> 即可。</li>
+          <li>账号保存在你自己的服务器（<code>data/users.json</code>），密码用 scrypt 加盐哈希，邮箱与验证码也一并加密/限时存储。</li>
+          <li>登录时<b>用户名或邮箱都可以</b>；登录状态通过本地 token 维持，有效期 30 天。</li>
+          <li>注册 / 登录需要有后端：本机执行 <code>node deploy/serve.js 8080</code> 后访问 <code>http://localhost:8080/login.html</code>。静态托管的版本没有后端，无法注册登录。</li>
         </ul>
       </div>
     </div>

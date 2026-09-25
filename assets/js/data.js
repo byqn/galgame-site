@@ -11,8 +11,8 @@
 
 window.SITE_DATA = {
   site: {
-    name: 'Galgame 资源站',
-    slogan: '一站式 Galgame 资源索引',
+    name: '小萝莉の资源站',
+    slogan: '找游戏、看攻略、少走弯路',
     desc: '免费、高质量的 Galgame 资源索引：找游戏、查会社、看补丁，一站搞定。',
     since: '2026',
     repo: 'https://github.com/byqn/galgame-site',

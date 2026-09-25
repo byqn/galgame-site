@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Galgame 资源站 —— 深色社区风格（v2 精修版）
+   小萝莉の资源站 —— 深色社区风格（v2 精修版）
    布局参考 TouchGal；封面为程序化生成的壁纸质感底图
    ========================================================================== */
 
@@ -792,6 +792,12 @@ a.gtag:hover { color: #ffdce8; border-color: rgba(255, 122, 162, 0.5); }
   box-shadow: 0 0 0 3px rgba(255, 122, 162, 0.14);
 }
 .auth-msg { font-size: 13.5px; min-height: 20px; }
+
+/* 验证码行：输入框 + 发送按钮并排 */
+.code-row { display: flex; align-items: flex-end; gap: 10px; }
+.code-row label { flex: 1; min-width: 0; }
+.code-row .small-btn { white-space: nowrap; margin-bottom: 1px; }
+.code-row .small-btn:disabled { opacity: 0.6; cursor: default; }
 .auth-msg.error { color: #f87171; }
 .auth-msg.ok { color: #6ee7b7; }
 .auth-hint { font-size: 12.5px; color: var(--muted-2); line-height: 1.8; }

@@ -25,10 +25,20 @@ const GAMES_FILE = path.join(DATA_DIR, 'games.json');
 const POSTS_FILE = path.join(DATA_DIR, 'posts.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const CODES_FILE = path.join(DATA_DIR, 'codes.json');
+const MAIL_FILE = path.join(DATA_DIR, 'mail.json');
+const OUTBOX_FILE = path.join(DATA_DIR, 'mail-outbox.json');
 const COVER_DIR = path.join(ROOT, 'assets', 'img', 'covers');
 const FILES_DIR = path.join(ROOT, 'files');
 
 const SESSION_DAYS = 30;
+const CODE_TTL_MS = 10 * 60 * 1000;    // 验证码有效期 10 分钟
+const CODE_COOLDOWN_MS = 60 * 1000;    // 同一邮箱发送间隔 60 秒
+const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/;
+
+// 可选依赖：装了 nodemailer 且配置了 SMTP 才发真邮件，否则用「本机验证码模式」
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch { nodemailer = null; }
 const MAX_FILE_BYTES = 4 * 1024 * 1024 * 1024;   // 单文件上限 4GB
 const MAX_JSON_BYTES = 12 * 1024 * 1024;         // JSON 请求体上限（含封面 base64）
 
@@ -118,19 +128,113 @@ function toArray(v, fallback) {
   return fallback;
 }
 
+/* ------------------------------ 邮件与验证码 ------------------------------ */
+function mailMode() {
+  const cfg = readJson(MAIL_FILE, null);
+  return cfg && cfg.enabled && nodemailer ? 'smtp' : 'local';
+}
+
+async function sendMail({ to, subject, text }) {
+  const cfg = readJson(MAIL_FILE, null);
+  if (cfg && cfg.enabled && nodemailer) {
+    const transporter = nodemailer.createTransport({
+      host: cfg.host,
+      port: Number(cfg.port) || 465,
+      secure: cfg.secure !== false,
+      auth: { user: cfg.user, pass: cfg.pass },
+    });
+    await transporter.sendMail({ from: cfg.from || cfg.user, to, subject, text });
+    console.log(`[mail] SMTP 已发送 → ${to}`);
+    return { sent: true, mode: 'smtp' };
+  }
+  // 本机模式：写进发件箱并打印到控制台
+  const outbox = readJson(OUTBOX_FILE, []);
+  outbox.unshift({ to, subject, text, at: new Date().toISOString() });
+  writeJson(OUTBOX_FILE, outbox.slice(0, 100));
+  console.log(`[mail] 本机模式 → ${to} | ${subject}`);
+  console.log('[mail] ' + text.split('\n').filter(Boolean).join(' / '));
+  return { sent: false, mode: 'local' };
+}
+
+function issueCode(email) {
+  const now = Date.now();
+  const code = String(crypto.randomInt(100000, 1000000));
+  const list = readJson(CODES_FILE, [])
+    .filter((c) => c.expires > now)
+    .map((c) => ({ ...c, used: true }));   // 同一个邮箱的旧验证码作废
+  list.push({ email, code, sentAt: now, expires: now + CODE_TTL_MS, used: false });
+  writeJson(CODES_FILE, list);
+  return code;
+}
+
+function verifyCode(email, code) {
+  const now = Date.now();
+  const list = readJson(CODES_FILE, []);
+  const hit = list.find((c) => c.email === email && c.code === String(code) && !c.used && c.expires > now);
+  if (!hit) return false;
+  hit.used = true;
+  writeJson(CODES_FILE, list.filter((c) => c.expires > now || c === hit));
+  return true;
+}
+
+function handleSendCode(req, res) {
+  return readBody(req).then(async (buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return sendJson(res, 400, { ok: false, error: '邮箱格式不正确' });
+    if (findUserByEmail(email)) return sendJson(res, 409, { ok: false, error: '该邮箱已被注册' });
+
+    const now = Date.now();
+    const recent = readJson(CODES_FILE, []).find((c) => c.email === email && c.sentAt && now - c.sentAt < CODE_COOLDOWN_MS);
+    if (recent) {
+      const wait = Math.ceil((CODE_COOLDOWN_MS - (now - recent.sentAt)) / 1000);
+      return sendJson(res, 429, { ok: false, error: `发送太频繁，请 ${wait} 秒后再试` });
+    }
+
+    const code = issueCode(email);
+    let result;
+    try {
+      result = await sendMail({
+        to: email,
+        subject: '【小萝莉の资源站】注册验证码',
+        text: `你的注册验证码是 ${code}，10 分钟内有效。\n如果不是你本人操作，请忽略这封邮件。`,
+      });
+    } catch (e) {
+      console.error('[mail] 发送失败:', e.message);
+      return sendJson(res, 500, { ok: false, error: '邮件发送失败：' + e.message });
+    }
+
+    const payload = { ok: true, mode: result.mode, expiresIn: CODE_TTL_MS / 1000 };
+    // 本机模式且从 localhost 访问时，直接把验证码回传，方便自测
+    if (!result.sent && isLocalRequest(req)) payload.devCode = code;
+    sendJson(res, 200, payload);
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
 /* ------------------------------ 用户与会话 ------------------------------ */
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 64).toString('hex');
 }
 
-function findUser(username) {
+// 用户名或邮箱都能定位到用户
+function findUser(identifier) {
   const users = readJson(USERS_FILE, []);
-  const key = String(username || '').trim().toLowerCase();
-  return users.find((u) => u.username.toLowerCase() === key) || null;
+  const key = String(identifier || '').trim().toLowerCase();
+  return users.find((u) =>
+    u.username.toLowerCase() === key || (u.email && u.email.toLowerCase() === key)
+  ) || null;
+}
+
+function findUserByEmail(email) {
+  const users = readJson(USERS_FILE, []);
+  const key = String(email || '').trim().toLowerCase();
+  return users.find((u) => u.email && u.email.toLowerCase() === key) || null;
 }
 
 function publicUser(u) {
-  return { id: u.id, username: u.username, createdAt: u.createdAt };
+  return { id: u.id, username: u.username, email: u.email || null, createdAt: u.createdAt };
 }
 
 function handleRegister(req, res) {
@@ -140,7 +244,12 @@ function handleRegister(req, res) {
 
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
 
+    if (!EMAIL_RE.test(email)) {
+      return sendJson(res, 400, { ok: false, error: '请填写有效的邮箱地址' });
+    }
     if (!/^[\w\u4e00-\u9fa5-]{3,20}$/.test(username)) {
       return sendJson(res, 400, { ok: false, error: '用户名需为 3–20 位中文、字母、数字、下划线或连字符' });
     }
@@ -150,11 +259,21 @@ function handleRegister(req, res) {
     if (findUser(username)) {
       return sendJson(res, 409, { ok: false, error: '该用户名已被注册' });
     }
+    if (findUserByEmail(email)) {
+      return sendJson(res, 409, { ok: false, error: '该邮箱已被注册' });
+    }
+    if (!code) {
+      return sendJson(res, 400, { ok: false, error: '请先获取并填写邮箱验证码' });
+    }
+    if (!verifyCode(email, code)) {
+      return sendJson(res, 400, { ok: false, error: '验证码错误或已过期，请重新获取' });
+    }
 
     const salt = crypto.randomBytes(16).toString('hex');
     const user = {
       id: 'u' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'),
       username,
+      email,
       salt,
       passHash: hashPassword(password, salt),
       createdAt: new Date().toISOString(),
@@ -492,6 +611,7 @@ http.createServer((req, res) => {
       posts: readJson(POSTS_FILE, []).length,
       users: readJson(USERS_FILE, []).length,
       files: listFiles().length,
+      mail: mailMode(),
     });
   }
   if (urlPath === '/api/games' && req.method === 'GET') {
@@ -505,6 +625,9 @@ http.createServer((req, res) => {
   }
   if (urlPath === '/api/files' && req.method === 'GET') {
     return sendJson(res, 200, listFiles());
+  }
+  if (urlPath === '/api/send-code' && req.method === 'POST') {
+    return handleSendCode(req, res);
   }
   if (urlPath === '/api/register' && req.method === 'POST') {
     return handleRegister(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
