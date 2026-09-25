@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 / 注册 - Galgame 资源站</title>
+  <meta name="description" content="注册或登录 Galgame 资源站账号。">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="login">
+  <header id="topbar"></header>
+
+  <main class="wrap">
+    <div class="auth-wrap">
+      <div class="panel" style="margin-top:0" id="auth-box">
+        <p class="muted small" style="margin:0">正在检查服务状态…</p>
+      </div>
+
+      <div class="panel">
+        <h3>说明</h3>
+        <ul class="auth-hint" style="margin:0;padding-left:20px">
+          <li>账号只保存在你自己的服务器上（<code>data/users.json</code>），密码用 scrypt 加盐哈希存储，不保存明文。</li>
+          <li>登录状态通过浏览器本地 token 维持，有效期 30 天。</li>
+          <li><b>注册 / 登录需要有后端</b>：本机执行 <code>node deploy/serve.js 8080</code> 后访问 <code>http://localhost:8080/login.html</code>。部署到 GitHub Pages 的静态版本没有后端，无法注册登录。</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/auth.js"></script>
+</body>
+</html>

@@ -119,6 +119,76 @@
     setMsg('');
   });
 
+  /* ---------- 游戏文件上传（流式 + 进度条） ---------- */
+  let uploadedFile = null;
+
+  function fmtSize(bytes) {
+    if (!bytes) return '';
+    const mb = bytes / 1048576;
+    return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(1) + ' MB';
+  }
+
+  function setProgress(ratio) {
+    const box = $('#file-progress');
+    box.hidden = false;
+    $('#fp-fill').style.width = (ratio * 100).toFixed(1) + '%';
+    $('#fp-text').textContent = (ratio * 100).toFixed(0) + '%';
+  }
+
+  function uploadFileWithProgress(file) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'api/upload-file?name=' + encodeURIComponent(file.name));
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setProgress(ev.loaded / ev.total); };
+      xhr.onload = () => {
+        try {
+          const info = JSON.parse(xhr.responseText || '{}');
+          if (info.ok) resolve(info.file);
+          else reject(new Error(info.error || '上传失败'));
+        } catch {
+          reject(new Error('服务器响应解析失败'));
+        }
+      };
+      xhr.onerror = () => reject(new Error('网络中断'));
+      xhr.send(file);
+    });
+  }
+
+  $('#file-input').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!serverMode) { setMsg('当前不可上传文件', 'error'); return; }
+
+    $('#file-hint').style.display = 'none';
+    $('#file-chosen').hidden = false;
+    $('#file-chosen').innerHTML = `${file.name} <span class="muted">· ${fmtSize(file.size)}</span>`;
+    setProgress(0);
+    setMsg('正在上传文件，请勿关闭页面…');
+
+    try {
+      uploadedFile = await uploadFileWithProgress(file);
+      setProgress(1);
+      $('#fp-text').textContent = '已上传 ' + fmtSize(uploadedFile.size);
+      $('#file-clear').style.display = 'inline-flex';
+      setMsg('文件已上传，访客可直接下载', 'ok');
+    } catch (err) {
+      uploadedFile = null;
+      setMsg('文件上传失败：' + err.message, 'error');
+      $('#file-progress').hidden = true;
+    }
+  });
+
+  $('#file-clear').addEventListener('click', () => {
+    uploadedFile = null;
+    $('#file-input').value = '';
+    $('#file-hint').style.display = '';
+    $('#file-chosen').hidden = true;
+    $('#file-progress').hidden = true;
+    $('#file-clear').style.display = 'none';
+    setMsg('');
+  });
+
   /* ---------- 表单收集 ---------- */
   const checkedValues = (sel) =>
     Array.from(document.querySelectorAll(sel + ' input:checked')).map((i) => i.value);
@@ -148,7 +218,8 @@
       languages: checkedValues('#f-languages').length ? checkedValues('#f-languages') : ['官方中文'],
       summary: $('#f-summary').value.trim() || '（暂无简介）',
       screenshots: shots,
-      downloads: downloads.length ? downloads : [{ label: '待补充', url: '#', code: '—' }],
+      downloads: downloads.length ? downloads : [],
+      file: uploadedFile,
     };
   }
 
@@ -166,7 +237,7 @@
       const res = await fetch('api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game, cover: coverDataUrl }),
+        body: JSON.stringify({ game, cover: coverDataUrl, file: uploadedFile }),
       });
       const info = await res.json();
       if (!info.ok) throw new Error(info.error || '服务器返回失败');

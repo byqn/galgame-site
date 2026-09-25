@@ -91,6 +91,23 @@
               <textarea id="f-downloads" rows="3" placeholder="百度网盘 | https://pan.baidu.com/s/xxxx | abcd&#10;夸克网盘 | https://pan.quark.cn/s/xxxx | —"></textarea>
             </div>
 
+            <div class="field-row full">
+              <span class="field-label">游戏文件（可选 —— 放在站内供访客<b>直接在浏览器下载</b>，不走网盘）</span>
+              <label class="file-drop" id="file-drop">
+                <input type="file" id="file-input" hidden>
+                <span class="file-hint" id="file-hint">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                  点击选择文件<br><span class="small muted">单文件最大 4GB · 仅本机服务器模式可用 · 文件不会进 Git 仓库</span>
+                </span>
+                <span class="file-chosen" id="file-chosen" hidden></span>
+              </label>
+              <div class="file-progress" id="file-progress" hidden>
+                <div class="fp-bar"><span id="fp-fill"></span></div>
+                <span class="small muted" id="fp-text">0%</span>
+              </div>
+              <button type="button" class="btn small-btn" id="file-clear" style="margin-top:10px;display:none">移除文件</button>
+            </div>
+
             <div class="upload-actions">
               <button type="submit" class="btn btn-primary" id="submit-btn">保存作品</button>
               <button type="reset" class="btn" id="reset-btn">清空表单</button>

@@ -4,3 +4,10 @@ desktop.ini
 *.log
 node_modules/
 .vscode/*.code-workspace
+
+# 上传的游戏文件（体积大，不放进版本库；仅本机服务器存储）
+files/
+
+# 账号与会话数据（含凭据哈希，绝不进版本库）
+data/users.json
+data/sessions.json

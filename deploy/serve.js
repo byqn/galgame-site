@@ -1,21 +1,35 @@
-/* 静态服务器 + 本地上传 API
+/* 静态服务器 + 本机后端 API
    用法：node deploy/serve.js [端口] [站点目录]
    默认端口 8080，默认站点目录为项目根目录
 
    API：
-     GET  /api/ping    检测服务与是否为本机访问
-     GET  /api/games   返回 data/games.json（自己上传的作品）
-     POST /api/upload  保存作品与封面（仅允许 localhost 访问）
+     GET  /api/ping          服务状态与是否本机访问
+     GET  /api/games         自己上传的作品（data/games.json）
+     POST /api/upload        保存作品与封面（仅 localhost）
+     POST /api/register      注册
+     POST /api/login         登录，返回 token
+     POST /api/logout        退出
+     GET  /api/me            当前登录用户
+     POST /api/upload-file   浏览器直接上传文件（流式，仅 localhost）
+     GET  /api/files         已上传文件列表
 */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = Number(process.argv[2] || 8080);
 const ROOT = path.resolve(process.argv[3] || path.join(__dirname, '..'));
 const DATA_DIR = path.join(ROOT, 'data');
 const GAMES_FILE = path.join(DATA_DIR, 'games.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const COVER_DIR = path.join(ROOT, 'assets', 'img', 'covers');
+const FILES_DIR = path.join(ROOT, 'files');
+
+const SESSION_DAYS = 30;
+const MAX_FILE_BYTES = 4 * 1024 * 1024 * 1024;   // 单文件上限 4GB
+const MAX_JSON_BYTES = 12 * 1024 * 1024;         // JSON 请求体上限（含封面 base64）
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -33,37 +47,55 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.zip': 'application/zip',
+  '.7z': 'application/x-7z-compressed',
+  '.rar': 'application/vnd.rar',
+  '.exe': 'application/octet-stream',
+  '.pdf': 'application/pdf',
 };
 
+/* ------------------------------ 基础工具 ------------------------------ */
 function send(res, code, body, type) {
   res.writeHead(code, { 'Content-Type': type || 'text/plain; charset=utf-8' });
   res.end(body);
 }
 
 function sendJson(res, code, obj) {
-  const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
   });
-  res.end(body);
+  res.end(JSON.stringify(obj));
 }
 
-/* 写操作只允许从本机 localhost 发起：
-   通过 Cloudflare 隧道进来的请求，Host 头是隧道域名，会被这里挡掉 */
+function readJson(file, fallback) {
+  try {
+    const v = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return v == null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+}
+
+/* 写操作只允许本机：通过 Cloudflare 隧道进来的请求 Host 是隧道域名，会被挡掉 */
 function isLocalRequest(req) {
   const host = String(req.headers.host || '').split(':')[0].toLowerCase();
   return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1';
 }
 
-function readBody(req, limit = 12 * 1024 * 1024) {
+function readBody(req, limit = MAX_JSON_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
       if (size > limit) {
-        reject(new Error('请求体超过 12MB 限制'));
+        reject(new Error('请求体过大'));
         req.destroy();
         return;
       }
@@ -72,20 +104,6 @@ function readBody(req, limit = 12 * 1024 * 1024) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
-}
-
-function readGames() {
-  try {
-    const list = JSON.parse(fs.readFileSync(GAMES_FILE, 'utf8'));
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeGames(list) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(GAMES_FILE, JSON.stringify(list, null, 2), 'utf8');
 }
 
 function toArray(v, fallback) {
@@ -99,131 +117,365 @@ function toArray(v, fallback) {
   return fallback;
 }
 
-async function handleUpload(req, res) {
+/* ------------------------------ 用户与会话 ------------------------------ */
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+function findUser(username) {
+  const users = readJson(USERS_FILE, []);
+  const key = String(username || '').trim().toLowerCase();
+  return users.find((u) => u.username.toLowerCase() === key) || null;
+}
+
+function publicUser(u) {
+  return { id: u.id, username: u.username, createdAt: u.createdAt };
+}
+
+function handleRegister(req, res) {
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+
+    if (!/^[\w\u4e00-\u9fa5-]{3,20}$/.test(username)) {
+      return sendJson(res, 400, { ok: false, error: '用户名需为 3–20 位中文、字母、数字、下划线或连字符' });
+    }
+    if (password.length < 6) {
+      return sendJson(res, 400, { ok: false, error: '密码至少 6 位' });
+    }
+    if (findUser(username)) {
+      return sendJson(res, 409, { ok: false, error: '该用户名已被注册' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const user = {
+      id: 'u' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'),
+      username,
+      salt,
+      passHash: hashPassword(password, salt),
+      createdAt: new Date().toISOString(),
+    };
+    const users = readJson(USERS_FILE, []);
+    users.push(user);
+    writeJson(USERS_FILE, users);
+
+    const token = createSession(user.id);
+    console.log(`[auth] 注册成功：${username}`);
+    sendJson(res, 200, { ok: true, token, user: publicUser(user) });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
+function handleLogin(req, res) {
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    const user = findUser(username);
+
+    if (!user) return sendJson(res, 401, { ok: false, error: '用户名或密码错误' });
+    if (hashPassword(password, user.salt) !== user.passHash) {
+      return sendJson(res, 401, { ok: false, error: '用户名或密码错误' });
+    }
+
+    const token = createSession(user.id);
+    console.log(`[auth] 登录成功：${user.username}`);
+    sendJson(res, 200, { ok: true, token, user: publicUser(user) });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
+function readSessions() {
+  const list = readJson(SESSIONS_FILE, []);
+  const now = Date.now();
+  return list.filter((s) => s.expires > now);
+}
+
+function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const sessions = readSessions();
+  sessions.push({ token, userId, expires: Date.now() + SESSION_DAYS * 864e5 });
+  writeJson(SESSIONS_FILE, sessions);
+  return token;
+}
+
+function getSessionUser(req) {
+  const auth = String(req.headers.authorization || '');
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (!token) return null;
+  const session = readSessions().find((s) => s.token === token);
+  if (!session) return null;
+  const users = readJson(USERS_FILE, []);
+  return users.find((u) => u.id === session.userId) || null;
+}
+
+function handleLogout(req, res) {
+  const auth = String(req.headers.authorization || '');
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const sessions = readSessions().filter((s) => s.token !== token);
+  writeJson(SESSIONS_FILE, sessions);
+  sendJson(res, 200, { ok: true });
+}
+
+/* ------------------------------ 作品上传 ------------------------------ */
+function handleUpload(req, res) {
   if (!isLocalRequest(req)) {
     return sendJson(res, 403, { ok: false, error: '上传接口仅允许通过 localhost 访问' });
   }
 
-  let payload;
-  try {
-    payload = JSON.parse((await readBody(req)).toString('utf8'));
-  } catch (e) {
-    return sendJson(res, 400, { ok: false, error: '数据解析失败：' + e.message });
-  }
+  return readBody(req).then((buf) => {
+    let payload;
+    try { payload = JSON.parse(buf.toString('utf8')); } catch (e) { return sendJson(res, 400, { ok: false, error: '数据解析失败：' + e.message }); }
 
-  const g = (payload && payload.game) || {};
-  const title = String(g.title || '').trim();
-  if (!title) return sendJson(res, 400, { ok: false, error: '作品名不能为空' });
+    const g = (payload && payload.game) || {};
+    const title = String(g.title || '').trim();
+    if (!title) return sendJson(res, 400, { ok: false, error: '作品名不能为空' });
 
-  const id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  const today = new Date().toISOString().slice(0, 10);
+    const id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const today = new Date().toISOString().slice(0, 10);
 
-  const game = {
-    id,
-    title,
-    originalTitle: String(g.originalTitle || title).trim(),
-    circle: String(g.circle || '未填写').trim(),
-    releaseDate: String(g.releaseDate || today).slice(0, 10),
-    updatedAt: today,
-    rating: Math.min(10, Math.max(0, Number(g.rating) || 0)),
-    views: String(g.views || '0'),
-    tags: toArray(g.tags, ['未分类']),
-    platforms: toArray(g.platforms, ['PC']),
-    languages: toArray(g.languages, ['官方中文']),
-    size: String(g.size || '未知').trim(),
-    version: String(g.version || 'v1.0').trim(),
-    isNew: true,
-    cover: { hue: 270, glyph: title.slice(0, 1) },
-    summary: String(g.summary || '（暂无简介）').trim(),
-    screenshots: toArray(g.screenshots, []),
-    downloads: Array.isArray(g.downloads) && g.downloads.length
-      ? g.downloads.map((d) => ({
-          label: String(d.label || '下载'),
-          url: String(d.url || '#'),
-          code: String(d.code || '—'),
-        }))
-      : [{ label: '待补充', url: '#', code: '—' }],
-    uploadedAt: new Date().toISOString(),
-  };
+    const game = {
+      id,
+      title,
+      originalTitle: String(g.originalTitle || title).trim(),
+      circle: String(g.circle || '未填写').trim(),
+      releaseDate: String(g.releaseDate || today).slice(0, 10),
+      updatedAt: today,
+      rating: Math.min(10, Math.max(0, Number(g.rating) || 0)),
+      views: String(g.views || '0'),
+      tags: toArray(g.tags, ['未分类']),
+      platforms: toArray(g.platforms, ['PC']),
+      languages: toArray(g.languages, ['官方中文']),
+      size: String(g.size || '未知').trim(),
+      version: String(g.version || 'v1.0').trim(),
+      isNew: true,
+      cover: { hue: 335, glyph: title.slice(0, 1) },
+      summary: String(g.summary || '（暂无简介）').trim(),
+      screenshots: toArray(g.screenshots, []),
+      downloads: Array.isArray(g.downloads) && g.downloads.length
+        ? g.downloads.map((d) => ({
+            label: String(d.label || '下载'),
+            url: String(d.url || '#'),
+            code: String(d.code || '—'),
+          }))
+        : [],
+      file: null,
+      uploadedAt: new Date().toISOString(),
+    };
 
-  // 保存封面（前端已压成 1100px 宽的 JPEG dataURL）
-  let hasCover = false;
-  const cover = payload && payload.cover;
-  if (typeof cover === 'string' && cover.startsWith('data:image/')) {
-    const base64 = cover.split(',')[1];
-    if (base64) {
-      try {
-        fs.mkdirSync(COVER_DIR, { recursive: true });
-        fs.writeFileSync(path.join(COVER_DIR, id + '.jpg'), Buffer.from(base64, 'base64'));
-        hasCover = true;
-      } catch (e) {
-        console.error('[upload] 封面写入失败:', e.message);
+    // 附带的本机文件（已在 /api/upload-file 上传过）
+    if (payload.file && payload.file.url) {
+      game.file = {
+        name: String(payload.file.name || '下载文件'),
+        size: Number(payload.file.size) || 0,
+        url: String(payload.file.url),
+      };
+    }
+
+    let hasCover = false;
+    const cover = payload && payload.cover;
+    if (typeof cover === 'string' && cover.startsWith('data:image/')) {
+      const base64 = cover.split(',')[1];
+      if (base64) {
+        try {
+          fs.mkdirSync(COVER_DIR, { recursive: true });
+          fs.writeFileSync(path.join(COVER_DIR, id + '.jpg'), Buffer.from(base64, 'base64'));
+          hasCover = true;
+        } catch (e) {
+          console.error('[upload] 封面写入失败:', e.message);
+        }
       }
     }
-  }
 
-  const list = readGames();
-  list.unshift(game);
-  try {
-    writeGames(list);
-  } catch (e) {
-    return sendJson(res, 500, { ok: false, error: '写入 data/games.json 失败：' + e.message });
-  }
+    const list = readJson(GAMES_FILE, []);
+    list.unshift(game);
+    writeJson(GAMES_FILE, list);
 
-  console.log(`[upload] 新增作品「${title}」 id=${id} 封面=${hasCover ? '有' : '无'} 总计=${list.length}`);
-  sendJson(res, 200, { ok: true, id, hasCover, total: list.length });
+    console.log(`[upload] 新增作品「${title}」 id=${id} 封面=${hasCover ? '有' : '无'} 文件=${game.file ? game.file.name : '无'}`);
+    sendJson(res, 200, { ok: true, id, hasCover, total: list.length });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
 }
 
+/* ------------------------------ 文件上传（流式） ------------------------------ */
+function safeFileName(name) {
+  const base = path.basename(String(name || 'file')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
+  return base || 'file';
+}
+
+function handleUploadFile(req, res, query) {
+  if (!isLocalRequest(req)) {
+    return sendJson(res, 403, { ok: false, error: '文件上传仅允许通过 localhost 访问' });
+  }
+
+  const original = safeFileName(query.get('name'));
+  const stamp = Date.now().toString(36);
+  const stored = `${stamp}-${original}`;
+  const fullPath = path.join(FILES_DIR, stored);
+
+  fs.mkdirSync(FILES_DIR, { recursive: true });
+
+  const declared = Number(req.headers['content-length'] || 0);
+  if (declared && declared > MAX_FILE_BYTES) {
+    return sendJson(res, 413, { ok: false, error: '文件超过 4GB 上限' });
+  }
+  if (fs.existsSync(fullPath)) {
+    return sendJson(res, 409, { ok: false, error: '同名文件已存在，请改名后重试' });
+  }
+
+  let size = 0;
+  let aborted = false;
+  const out = fs.createWriteStream(fullPath);
+
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > MAX_FILE_BYTES) {
+      aborted = true;
+      out.destroy();
+      fs.unlink(fullPath, () => {});
+      sendJson(res, 413, { ok: false, error: '文件超过 4GB 上限' });
+      req.destroy();
+    }
+  });
+
+  req.pipe(out);
+
+  out.on('finish', () => {
+    if (aborted) return;
+    console.log(`[upload-file] ${stored}  ${(size / 1048576).toFixed(1)} MB`);
+    sendJson(res, 200, {
+      ok: true,
+      file: { name: original, stored, size, url: 'files/' + encodeURIComponent(stored) },
+    });
+  });
+
+  out.on('error', (e) => {
+    if (aborted) return;
+    console.error('[upload-file] 写入失败:', e.message);
+    sendJson(res, 500, { ok: false, error: '写入失败：' + e.message });
+  });
+}
+
+function listFiles() {
+  try {
+    return fs.readdirSync(FILES_DIR)
+      .filter((f) => !f.startsWith('.'))
+      .map((f) => {
+        const st = fs.statSync(path.join(FILES_DIR, f));
+        return { stored: f, size: st.size, mtime: st.mtimeMs, url: 'files/' + encodeURIComponent(f) };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+  } catch {
+    return [];
+  }
+}
+
+/* ------------------------------ 静态文件 ------------------------------ */
 function serveStatic(req, res, urlPath) {
   let target = path.join(ROOT, path.normalize(urlPath));
   if (!target.startsWith(ROOT)) return send(res, 403, '403 Forbidden');
   if (urlPath.endsWith('/')) target = path.join(target, 'index.html');
 
   fs.stat(target, (err, st) => {
-    if (!err && st.isFile()) {
-      const ext = path.extname(target).toLowerCase();
-      res.writeHead(200, {
-        'Content-Type': MIME[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-cache',
-      });
-      fs.createReadStream(target).pipe(res);
-      return;
-    }
+    if (!err && st.isFile()) return streamFile(target, res, req);
     if (!err && st.isDirectory()) {
       const idx = path.join(target, 'index.html');
-      if (fs.existsSync(idx)) {
-        res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
-        fs.createReadStream(idx).pipe(res);
-        return;
-      }
+      if (fs.existsSync(idx)) return streamFile(idx, res, req);
     }
     const alt = target + '.html';
-    if (fs.existsSync(alt)) {
-      res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
-      fs.createReadStream(alt).pipe(res);
-      return;
-    }
+    if (fs.existsSync(alt)) return streamFile(alt, res, req);
     send(res, 404, '<h1 style="font-family:sans-serif">404 Not Found</h1>', MIME['.html']);
   });
 }
 
+function streamFile(file, res, req) {
+  const ext = path.extname(file).toLowerCase();
+  const size = fs.statSync(file).size;
+  const headers = {
+    'Content-Type': MIME[ext] || 'application/octet-stream',
+    'Cache-Control': 'no-cache',
+  };
+
+  // files/ 目录下的文件一律强制下载并支持断点续传；常见的压缩包同样处理
+  const isDownloadable = file.startsWith(FILES_DIR) || ['.zip', '.7z', '.rar', '.exe', '.pdf'].includes(ext);
+  if (isDownloadable) {
+    headers['Accept-Ranges'] = 'bytes';
+    headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`;
+    const range = req.headers.range;
+    if (range) {
+      const m = /bytes=(\d*)-(\d*)/.exec(range);
+      if (m) {
+        const start = m[1] ? Number(m[1]) : 0;
+        const end = m[2] ? Number(m[2]) : size - 1;
+        if (start < size) {
+          res.writeHead(206, {
+            ...headers,
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Content-Length': end - start + 1,
+          });
+          fs.createReadStream(file, { start, end }).pipe(res);
+          return;
+        }
+      }
+    }
+  }
+
+  headers['Content-Length'] = size;
+  res.writeHead(200, headers);
+  fs.createReadStream(file).pipe(res);
+}
+
+/* ------------------------------ 服务器 ------------------------------ */
 http.createServer((req, res) => {
   let urlPath;
+  let query;
   try {
-    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+    const u = new URL(req.url || '/', 'http://localhost');
+    urlPath = decodeURIComponent(u.pathname);
+    query = u.searchParams;
   } catch {
     return send(res, 400, '400 Bad Request');
   }
 
   // ---------- API ----------
   if (urlPath === '/api/ping') {
-    return sendJson(res, 200, { ok: true, mode: 'server', local: isLocalRequest(req), games: readGames().length });
+    return sendJson(res, 200, {
+      ok: true,
+      mode: 'server',
+      local: isLocalRequest(req),
+      games: readJson(GAMES_FILE, []).length,
+      users: readJson(USERS_FILE, []).length,
+      files: listFiles().length,
+    });
   }
   if (urlPath === '/api/games' && req.method === 'GET') {
-    return sendJson(res, 200, readGames());
+    return sendJson(res, 200, readJson(GAMES_FILE, []));
+  }
+  if (urlPath === '/api/files' && req.method === 'GET') {
+    return sendJson(res, 200, listFiles());
+  }
+  if (urlPath === '/api/register' && req.method === 'POST') {
+    return handleRegister(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+  }
+  if (urlPath === '/api/login' && req.method === 'POST') {
+    return handleLogin(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+  }
+  if (urlPath === '/api/logout' && req.method === 'POST') {
+    return handleLogout(req, res);
+  }
+  if (urlPath === '/api/me' && req.method === 'GET') {
+    const user = getSessionUser(req);
+    return user
+      ? sendJson(res, 200, { ok: true, user: publicUser(user) })
+      : sendJson(res, 401, { ok: false, error: '未登录或登录已过期' });
   }
   if (urlPath === '/api/upload' && req.method === 'POST') {
     return handleUpload(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+  }
+  if (urlPath === '/api/upload-file' && req.method === 'POST') {
+    return handleUploadFile(req, res, query);
   }
 
   // ---------- 静态文件 ----------
@@ -231,5 +483,5 @@ http.createServer((req, res) => {
 }).listen(PORT, () => {
   console.log(`[serve] 站点目录: ${ROOT}`);
   console.log(`[serve] 本机访问: http://localhost:${PORT}`);
-  console.log('[serve] 上传接口已启用（仅限 localhost）；作品数据写入 data/games.json');
+  console.log('[serve] 作品上传 / 账号注册登录 / 大文件上传下载 已启用（写操作仅限 localhost）');
 });

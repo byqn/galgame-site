@@ -23,6 +23,13 @@
   }
 
   const fmtDate = (iso) => (iso ? iso.replace(/-/g, '/') : '—');
+
+  function fmtSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (!n) return '';
+    const mb = n / 1048576;
+    return mb >= 1024 ? (mb / 1024).toFixed(2) + ' GB' : mb.toFixed(1) + ' MB';
+  }
   const getGame = (id) => GAMES.find((g) => g.id === id) || null;
   const getPost = (id) => POSTS.find((p) => p.id === id) || null;
 
@@ -183,6 +190,7 @@
             ${ICON.search}
             <input type="search" placeholder="搜索作品…" autocomplete="off" aria-label="搜索作品">
           </form>
+          <div class="user-area" id="user-area"></div>
           <a class="icon-btn" href="${SITE.repo}" target="_blank" rel="noopener" title="GitHub 仓库">${ICON.github}</a>
         </div>
       </div>`;
@@ -372,13 +380,124 @@
     document.body.appendChild(btn);
   }
 
+  /* ------------------------------ 账号 ------------------------------ */
+  const TOKEN_KEY = 'galgame_token';
+  let currentUser = null;
+
+  const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
+  const setToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } };
+
+  function renderAuthUI() {
+    const host = $('#user-area');
+    if (!host) return;
+    if (currentUser) {
+      host.innerHTML = `
+        <a class="user-chip" href="upload.html" title="已登录，去上传作品">
+          <span class="avatar">${esc(currentUser.username.slice(0, 1))}</span>
+          <span>${esc(currentUser.username)}</span>
+        </a>
+        <button class="icon-btn" id="logout-btn" type="button" title="退出登录">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>
+          </svg>
+        </button>`;
+      $('#logout-btn').addEventListener('click', async () => {
+        try {
+          await fetch('api/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + getToken() } });
+        } catch { /* 忽略 */ }
+        setToken('');
+        currentUser = null;
+        renderAuthUI();
+      });
+    } else {
+      host.innerHTML = '<a class="login-link" href="login.html">登录 / 注册</a>';
+    }
+  }
+
+  async function loadAuth() {
+    const token = getToken();
+    if (!token) { renderAuthUI(); return; }
+    try {
+      const res = await fetch('api/me', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      if (res.ok) {
+        const info = await res.json();
+        currentUser = info.user || null;
+      } else {
+        setToken('');
+        currentUser = null;
+      }
+    } catch { /* 静态托管下没有接口，保持未登录 */ }
+    renderAuthUI();
+  }
+
+  /* ------------------------------ QQ 群 ------------------------------ */
+  // 移动端直接唤起 QQ 加群卡片；PC 浏览器无法唤起，弹出群号 + 复制按钮
+  function joinQQGroup(group) {
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile|QQ\//i.test(navigator.userAgent);
+    if (isMobile) {
+      location.href = `mqqapi://card/show_pslcard?src_type=internal&version=1&uin=${group}&card_type=group&source=qrcode`;
+      return;
+    }
+    showQQModal(group);
+  }
+
+  function showQQModal(group) {
+    let mask = $('#qq-modal');
+    if (!mask) {
+      mask = document.createElement('div');
+      mask.id = 'qq-modal';
+      mask.className = 'modal-mask';
+      mask.innerHTML = `
+        <div class="modal" role="dialog" aria-modal="true" aria-label="加入 QQ 群">
+          <button class="modal-close" type="button" aria-label="关闭">×</button>
+          <div class="modal-icon">💬</div>
+          <h3>加入 QQ 群</h3>
+          <p class="muted">电脑浏览器无法直接唤起 QQ 加群，用任一方式即可：</p>
+          <div class="qq-number">
+            <span class="qq-num">${esc(group)}</span>
+            <button class="btn small-btn" type="button" id="qq-copy">复制群号</button>
+          </div>
+          <p class="small muted" style="margin:8px 0 16px">打开 QQ →「加好友 / 加群」→ 搜索该群号 → 申请加入</p>
+          <a class="btn btn-primary btn-block" href="https://qm.qq.com/cgi-bin/qm/qr?uin=${encodeURIComponent(group)}" target="_blank" rel="noopener">在浏览器打开加群页</a>
+        </div>`;
+      document.body.appendChild(mask);
+
+      mask.addEventListener('click', (e) => {
+        if (e.target === mask || e.target.closest('.modal-close')) mask.classList.remove('show');
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && mask.classList.contains('show')) mask.classList.remove('show');
+      });
+      const copyBtn = mask.querySelector('#qq-copy');
+      copyBtn.addEventListener('click', async () => {
+        const text = mask.querySelector('.qq-num').textContent.trim();
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = '已复制 ✓';
+        } catch {
+          copyBtn.textContent = '请手动复制';
+        }
+        setTimeout(() => { copyBtn.textContent = '复制群号'; }, 1600);
+      });
+    } else {
+      mask.querySelector('.qq-num').textContent = group;
+    }
+    requestAnimationFrame(() => mask.classList.add('show'));
+  }
+
   /* ------------------------------ 页面装配 ------------------------------ */
   function initHome() {
     const social = $('#social-row');
     if (social) {
-      social.innerHTML = (SITE.links || []).map((l) =>
-        `<a class="social-btn" href="doc.html"><span>${l.icon || '🔗'}</span>${esc(l.label)} · ${esc(l.value)}</a>`
-      ).join('');
+      social.innerHTML = (SITE.links || []).map((l) => {
+        const isQQ = /QQ/i.test(l.label);
+        return `<a class="social-btn" href="${isQQ ? 'javascript:void(0)' : 'doc.html'}"${isQQ ? ` data-qq="${esc(l.value)}"` : ''}>
+            <span>${l.icon || '🔗'}</span>${esc(l.label)} · ${esc(l.value)}</a>`;
+      }).join('');
+      social.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-qq]');
+        if (btn && btn.dataset.qq) { e.preventDefault(); joinQQGroup(btn.dataset.qq); }
+      });
     }
 
     const notice = $('#notice-card');
@@ -457,7 +576,7 @@
         emptyEl.style.display = 'block';
         emptyEl.innerHTML = GAMES.length
           ? '没有符合条件的作品，换个关键词或筛选条件试试。'
-          : '作品库里还没有作品。<a href="upload.html" style="color:#c9b8ff">去上传第一部 →</a>';
+          : '作品库里还没有作品。<a href="upload.html" style="color:#ffd6e4">去上传第一部 →</a>';
       }
       count.textContent = `共 ${total} 部作品`;
       renderPager(pager, { page: state.page, total, onGo: (p) => { state.page = p; refresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
@@ -531,14 +650,25 @@
       </div>
 
       <div class="panel" id="downloads">
-        <h3>下载 / 版本</h3>
-        ${g.downloads.map((d) => `
+        <h3>下载</h3>
+        ${g.file ? `
+          <div class="file-box">
+            <span class="fb-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+            </span>
+            <div style="flex:1;min-width:0">
+              <div class="li-title">${esc(g.file.name)}</div>
+              <div class="li-meta">${fmtSize(g.file.size)} · 站内直链，点击即可在浏览器下载</div>
+            </div>
+            <a class="btn btn-primary" href="${esc(g.file.url)}" download>下载文件</a>
+          </div>` : ''}
+        ${g.downloads.length ? g.downloads.map((d) => `
           <div class="download-row">
             <span class="name">${esc(d.label)}</span>
             <a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">打开链接</a>
             <span class="small muted">提取码：<span class="code">${esc(d.code)}</span></span>
-          </div>`).join('')}
-        <p class="small muted" style="margin:14px 0 0">以上为占位示例，请在 <code>assets/js/data.js</code> 中替换为你有权分发的地址。</p>
+          </div>`).join('')
+          : (g.file ? '' : '<p class="muted small" style="margin:0">暂无可下载内容。</p>')}
       </div>
 
       ${posts.length ? `<div class="panel"><h3>相关资源</h3>${posts.map(listRow).join('')}</div>` : ''}
@@ -729,6 +859,7 @@
     renderHeader(page);
     renderFooter();
     initGlobalUI();
+    loadAuth();
     const routes = {
       home: initHome, galgame: initLibrary, detail: initDetail,
       tag: initTags, company: initCompanies, resource: initResources,

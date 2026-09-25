@@ -32,7 +32,7 @@
   transition: border-color 0.2s, background 0.2s;
   text-align: center;
 }
-.cover-drop:hover { border-color: rgba(139, 92, 246, 0.6); background: var(--card-2); }
+.cover-drop:hover { border-color: rgba(255, 122, 162, 0.6); background: var(--card-2); }
 .cover-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-hint { color: var(--muted); font-size: 13px; line-height: 1.8; }
 .cover-hint svg { width: 26px; height: 26px; margin-bottom: 6px; color: var(--muted-2); }
@@ -66,9 +66,9 @@
   resize: vertical;
 }
 .upload-form input:focus, .upload-form textarea:focus {
-  border-color: rgba(139, 92, 246, 0.55);
+  border-color: rgba(255, 122, 162, 0.55);
   background: var(--card);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.13);
+  box-shadow: 0 0 0 3px rgba(255, 122, 162, 0.13);
 }
 .upload-form input::placeholder, .upload-form textarea::placeholder { color: var(--muted-2); }
 .upload-form input[type="date"] { color-scheme: dark; }
@@ -86,10 +86,39 @@
 }
 .chk:hover { border-color: var(--line-2); }
 .chk input { accent-color: var(--accent); }
-.chk:has(input:checked) { border-color: rgba(139, 92, 246, 0.6); background: rgba(139, 92, 246, 0.12); }
+.chk:has(input:checked) { border-color: rgba(255, 122, 162, 0.6); background: rgba(255, 122, 162, 0.12); }
 
 .upload-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .small-btn { padding: 7px 13px; font-size: 13.5px; }
+
+/* ---------- 游戏文件上传 ---------- */
+.file-drop {
+  display: grid;
+  place-items: center;
+  padding: 22px 18px;
+  border: 1.5px dashed var(--line-2);
+  border-radius: 12px;
+  background: var(--bg-2);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.file-drop:hover { border-color: rgba(255, 122, 162, 0.6); background: var(--card-2); }
+.file-hint { color: var(--muted); font-size: 13px; line-height: 1.9; }
+.file-hint svg { width: 24px; height: 24px; margin-bottom: 4px; color: var(--muted-2); }
+.file-chosen { font-size: 14px; font-weight: 600; color: var(--text); word-break: break-all; }
+
+.file-progress { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.fp-bar {
+  flex: 1; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--bg-2); border: 1px solid var(--line);
+}
+.fp-bar span {
+  display: block; height: 100%; width: 0;
+  background: var(--accent-grad);
+  transition: width 0.2s ease-out;
+}
+#fp-text { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 860px) {
   .upload-grid { grid-template-columns: 1fr; }
