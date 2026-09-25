@@ -68,6 +68,25 @@ galgame-site/
 
 当前 15 张封面取自 [Wallhaven](https://wallhaven.cc/)（免费动漫壁纸图库，SFW 分类），版权归各原作者所有，仅作占位演示；正式对外前请替换为你拥有授权的图片，或保留程序化封面。
 
+## 自己上传作品（推荐）
+
+站点带一个上传页面 `upload.html`：填资料 + 传封面，保存后立刻在作品库出现。
+
+1. 启动本地服务器：`node deploy/serve.js 8080`（或 `deploy/start-public.ps1`）
+2. 浏览器打开 `http://localhost:8080/upload.html`
+3. 填完保存 —— 封面会自动压缩成 1100px 宽的 JPEG
+
+保存位置：
+
+- 作品数据 → `data/games.json`
+- 封面图 → `assets/img/covers/<作品id>.jpg`
+
+**注意：**
+
+- 上传需要后端，所以**只在本地服务器模式下可用**；部署到 GitHub Pages 的静态版只能浏览。
+- 出于安全考虑，上传接口只接受 Host 为 `localhost` / `127.0.0.1` 的请求 —— 即使站点通过 Cloudflare 隧道对公网开放，别人也无法调用上传。
+- 想让上传的作品出现在线上版本：本地保存后 `git add . && git commit && git push`，图片和 JSON 会一起进仓库。
+
 ## 本地预览
 
 方式一：双击 `index.html`（数据用 `<script>` 引入，`file://` 下也能正常渲染）。

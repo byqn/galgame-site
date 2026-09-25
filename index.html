@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Galgame 资源站 - 一站式 Galgame 资源索引</title>
-  <meta name="description" content="一站式 Galgame 资源索引：最新作品、高分推荐、会社与标签检索、补丁与教程。">
+  <meta name="description" content="一站式 Galgame 资源索引：按标签、会社、平台、语言检索作品，补丁与教程一处找齐，支持自己上传作品。">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body data-page="home">
@@ -23,8 +23,17 @@
 
     <!-- 快捷入口 -->
     <section class="quick-row">
-      <a class="quick" href="tag.html">
+      <a class="quick" href="galgame.html">
         <span class="qi p">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M9 21V9"/></svg>
+        </span>
+        <span>
+          <span class="qt">作品库</span>
+          <span class="qs" id="q-games">—</span>
+        </span>
+      </a>
+      <a class="quick" href="tag.html">
+        <span class="qi b">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4.8a2 2 0 0 1 2-2H12a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8Z"/><circle cx="7.6" cy="7.6" r="1.4" fill="currentColor" stroke="none"/></svg>
         </span>
         <span>
@@ -41,34 +50,15 @@
           <span class="qs" id="q-company">—</span>
         </span>
       </a>
-      <a class="quick" href="resource.html">
+      <a class="quick" href="upload.html">
         <span class="qi g">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><path d="M17.25 13.5v7.5M13.5 17.25h7.5"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>
         </span>
         <span>
-          <span class="qt">补丁与教程</span>
-          <span class="qs" id="q-resource">—</span>
+          <span class="qt">上传作品</span>
+          <span class="qs">自己添加条目</span>
         </span>
       </a>
-    </section>
-
-    <!-- 最新 Galgame -->
-    <section class="section">
-      <div class="section-head">
-        <h2>最新 Galgame</h2>
-        <span class="count">共 <span id="stat-games">0</span> 部收录</span>
-        <a class="more" href="galgame.html">查看更多 →</a>
-      </div>
-      <div class="ggrid" id="latest-grid"></div>
-    </section>
-
-    <!-- 高分榜 -->
-    <section class="section">
-      <div class="section-head">
-        <h2>高分推荐</h2>
-        <a class="more" href="galgame.html?sort=rating">更多高分 →</a>
-      </div>
-      <div class="ggrid" id="top-grid"></div>
     </section>
 
     <!-- 最新补丁 -->
@@ -79,6 +69,21 @@
         <a class="more" href="resource.html">全部资源 →</a>
       </div>
       <div class="panel" style="margin-top:0" id="patch-list"></div>
+    </section>
+
+    <!-- 站点说明 -->
+    <section class="section">
+      <div class="section-head">
+        <h2>关于本站</h2>
+        <a class="more" href="doc.html">网站说明 →</a>
+      </div>
+      <div class="panel" style="margin-top:0">
+        <p class="muted" style="margin-top:0">本站作品条目由站长自行整理上传，所有资料以检索与归档为目的，不存储、不提供任何游戏文件本体。</p>
+        <div class="actions" style="margin-top:14px">
+          <a class="btn btn-primary" href="upload.html">上传一部作品</a>
+          <a class="btn" href="galgame.html">浏览作品库</a>
+        </div>
+      </div>
     </section>
   </main>
 

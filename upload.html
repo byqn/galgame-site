@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>上传作品 - Galgame 资源站</title>
+  <meta name="description" content="自己上传 Galgame 作品条目：填写资料、上传封面，保存后立即在站内展示。">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/upload.css">
+</head>
+<body data-page="upload">
+  <header id="topbar"></header>
+
+  <main class="wrap">
+    <section class="section">
+      <div class="section-head">
+        <h2>上传作品</h2>
+        <span class="count" id="mode-badge">检测中…</span>
+        <a class="more" href="galgame.html">查看作品库 →</a>
+      </div>
+
+      <div id="mode-tip" class="notice-bar" style="display:none"></div>
+
+      <form id="upload-form" class="panel upload-form" style="margin-top:0" autocomplete="off">
+        <div class="upload-grid">
+          <!-- 左：封面 -->
+          <div class="cover-col">
+            <label class="field-label">封面图</label>
+            <label class="cover-drop" id="cover-drop">
+              <input type="file" id="cover-input" accept="image/*" hidden>
+              <img id="cover-preview" alt="" hidden>
+              <span class="cover-hint" id="cover-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>
+                点击选择图片<br><span class="small muted">会自动压缩到 1100px 宽的 JPEG</span>
+              </span>
+            </label>
+            <button type="button" class="btn small-btn" id="cover-clear" style="margin-top:10px;display:none">移除封面</button>
+          </div>
+
+          <!-- 右：字段 -->
+          <div class="field-col">
+            <div class="field-row">
+              <label>作品名 <i>*</i><input type="text" id="f-title" placeholder="例如：雪之诗" required></label>
+              <label>原题<input type="text" id="f-originalTitle" placeholder="例如：雪の詩"></label>
+            </div>
+
+            <div class="field-row">
+              <label>制作会社<input type="text" id="f-circle" placeholder="例如：Frostwork"></label>
+              <label>发售日期<input type="date" id="f-releaseDate"></label>
+            </div>
+
+            <div class="field-row">
+              <label>评分（0–10）<input type="number" id="f-rating" min="0" max="10" step="0.1" value="8.0"></label>
+              <label>版本<input type="text" id="f-version" placeholder="例如：v1.0 汉化版"></label>
+              <label>大小<input type="text" id="f-size" placeholder="例如：3.2 GB"></label>
+            </div>
+
+            <div class="field-row">
+              <label>标签（逗号分隔）<input type="text" id="f-tags" placeholder="恋爱, 治愈, 冬季"></label>
+            </div>
+
+            <div class="field-row">
+              <span class="field-label">平台</span>
+              <div class="check-row" id="f-platforms">
+                <label class="chk"><input type="checkbox" value="PC" checked> PC</label>
+                <label class="chk"><input type="checkbox" value="Android"> Android</label>
+                <label class="chk"><input type="checkbox" value="macOS"> macOS</label>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <span class="field-label">语言</span>
+              <div class="check-row" id="f-languages">
+                <label class="chk"><input type="checkbox" value="官方中文" checked> 官方中文</label>
+                <label class="chk"><input type="checkbox" value="日本語"> 日本語</label>
+                <label class="chk"><input type="checkbox" value="English"> English</label>
+                <label class="chk"><input type="checkbox" value="汉化版"> 汉化版</label>
+              </div>
+            </div>
+
+            <div class="field-row full">
+              <label>作品简介<textarea id="f-summary" rows="4" placeholder="一两句话介绍剧情、看点与游玩时长"></textarea></label>
+            </div>
+
+            <div class="field-row full">
+              <label>截图场景名（逗号分隔，可选）<input type="text" id="f-shots" placeholder="车站初遇, 雪夜告白"></label>
+            </div>
+
+            <div class="field-row full">
+              <span class="field-label">下载 / 版本链接（可留空，每行一条：名称 | 链接 | 提取码）</span>
+              <textarea id="f-downloads" rows="3" placeholder="百度网盘 | https://pan.baidu.com/s/xxxx | abcd&#10;夸克网盘 | https://pan.quark.cn/s/xxxx | —"></textarea>
+            </div>
+
+            <div class="upload-actions">
+              <button type="submit" class="btn btn-primary" id="submit-btn">保存作品</button>
+              <button type="reset" class="btn" id="reset-btn">清空表单</button>
+              <span class="small muted" id="form-msg"></span>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="panel">
+        <h3>说明</h3>
+        <ul class="small muted" style="margin:0;padding-left:20px;line-height:1.9">
+          <li>上传的作品会保存到站点的 <code>data/games.json</code>，封面图保存到 <code>assets/img/covers/</code>，保存后刷新即可在作品库看到。</li>
+          <li><b>上传功能只在本地运行服务器时可用</b>（<code>node deploy/serve.js 8080</code> 或 <code>deploy\start-public.ps1</code>）。部署到 GitHub Pages 的静态版本没有后端，只能浏览。</li>
+          <li>出于安全考虑，上传接口只接受通过 <code>localhost</code> 发起的请求 —— 即使站点通过 Cloudflare 隧道对公网开放，别人也无法调用上传。</li>
+          <li>想让上传的作品出现在公网版本上：本地保存后提交并推送仓库即可（图片和 JSON 都会一起进版本库）。</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/upload.js"></script>
+</body>
+</html>

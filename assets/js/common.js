@@ -5,7 +5,8 @@
 
 (function () {
   const D = window.SITE_DATA;
-  const GAMES = D.games;
+  const BUILTIN_GAMES = D.games || [];
+  let GAMES = BUILTIN_GAMES.slice();   // 运行时会把「自己上传的作品」合并进来
   const POSTS = D.posts;
   const NOTICES = D.notices || [];
   const SITE = D.site;
@@ -141,6 +142,7 @@
     { href: 'company.html', text: '会社', key: 'company' },
     { href: 'resource.html', text: '资源', key: 'resource' },
     { href: 'doc.html', text: '文档', key: 'doc' },
+    { href: 'upload.html', text: '上传', key: 'upload' },
   ];
 
   function renderHeader(active) {
@@ -373,18 +375,13 @@
     }
 
     const setText = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
+    setText('#q-games', GAMES.length + ' 部作品');
     setText('#q-tag', allTags().length + ' 个标签');
     setText('#q-company', allCompanies().length + ' 家公司');
-    setText('#q-resource', POSTS.filter((p) => p.category === '补丁').length + ' 个补丁');
 
-    const grid = $('#latest-grid');
-    if (grid) grid.innerHTML = filterGames({ sort: 'updated' }).slice(0, 12).map(gameCard).join('') || emptyHtml();
-    const topGrid = $('#top-grid');
-    if (topGrid) topGrid.innerHTML = filterGames({ sort: 'rating' }).slice(0, 4).map(gameCard).join('');
     const pl = $('#patch-list');
     if (pl) pl.innerHTML = POSTS.filter((p) => p.category === '补丁').slice(0, 6).map(listRow).join('') || emptyHtml();
 
-    setText('#stat-games', GAMES.length);
     setText('#stat-posts', POSTS.length);
   }
 
@@ -434,7 +431,14 @@
       if (state.page > pages) state.page = pages;
       const slice = list.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
       grid.innerHTML = slice.map(gameCard).join('');
-      $('#lib-empty').style.display = total ? 'none' : 'block';
+      const emptyEl = $('#lib-empty');
+      if (total) emptyEl.style.display = 'none';
+      else {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = GAMES.length
+          ? '没有符合条件的作品，换个关键词或筛选条件试试。'
+          : '作品库里还没有作品。<a href="upload.html" style="color:#c9b8ff">去上传第一部 →</a>';
+      }
       count.textContent = `共 ${total} 部作品`;
       renderPager(pager, { page: state.page, total, onGo: (p) => { state.page = p; refresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
       syncUrl(state, KEYS);
@@ -453,6 +457,17 @@
     const id = new URLSearchParams(location.search).get('id');
     const g = getGame(id) || GAMES[0];
     const host = $('#detail');
+    if (!g) {
+      document.title = `作品不存在 - ${SITE.name}`;
+      host.innerHTML = `
+        <div class="crumbs"><a href="index.html">首页</a> / <a href="galgame.html">Galgame</a> / 未找到</div>
+        <div class="empty">
+          作品不存在或已被删除。<br>
+          <a class="btn" href="galgame.html" style="margin-top:16px">返回作品库</a>
+          <a class="btn btn-primary" href="upload.html" style="margin-top:16px">上传一部作品</a>
+        </div>`;
+      return;
+    }
     document.title = `${g.title} - ${SITE.name}`;
 
     const related = GAMES.filter((x) => x.id !== g.id && x.tags.some((t) => g.tags.includes(t))).slice(0, 4);
@@ -639,8 +654,18 @@
   }
 
   /* ------------------------------ 入口 ------------------------------ */
-  function init() {
+  async function init() {
     const page = document.body.dataset.page || '';
+
+    // 合并「自己上传的作品」：读取 data/games.json（静态托管下没有该文件会静默跳过）
+    try {
+      const res = await fetch('data/games.json', { cache: 'no-store' });
+      if (res.ok) {
+        const uploaded = await res.json();
+        if (Array.isArray(uploaded) && uploaded.length) GAMES = uploaded.concat(BUILTIN_GAMES);
+      }
+    } catch { /* file:// 或静态模式，忽略 */ }
+
     renderHeader(page);
     renderFooter();
     initGlobalUI();

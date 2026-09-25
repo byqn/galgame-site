@@ -17,7 +17,7 @@ window.SITE_DATA = {
     since: '2026',
     repo: 'https://github.com/byqn/galgame-site',
     links: [
-      { label: 'QQ 群', value: '123456789', icon: '💬' },
+      { label: 'QQ 群', value: '883598175', icon: '💬' },
       { label: 'B 站', value: '关注我们', icon: '📺' },
       { label: 'TG 频道', value: '订阅更新', icon: '✈️' },
     ],
