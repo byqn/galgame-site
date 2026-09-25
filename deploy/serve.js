@@ -129,6 +129,31 @@ function toArray(v, fallback) {
   return fallback;
 }
 
+/* 简易频率限制（内存计数，重启清零） */
+const rateBuckets = new Map();
+
+function clientIp(req) {
+  const raw = (req.socket && req.socket.remoteAddress) || '';
+  return raw.replace('::ffff:', '') || 'unknown';
+}
+
+function checkRate(key, max, windowMs) {
+  const now = Date.now();
+  const rec = rateBuckets.get(key);
+  if (!rec || rec.until <= now) {
+    rateBuckets.set(key, { count: 1, until: now + windowMs });
+    return true;
+  }
+  rec.count += 1;
+  return rec.count <= max;
+}
+
+// 定期清理过期计数，避免内存无限增长
+setInterval(() => {
+  const now = Date.now();
+  rateBuckets.forEach((rec, key) => { if (rec.until <= now) rateBuckets.delete(key); });
+}, 5 * 60 * 1000).unref?.();
+
 /* ------------------------------ 邮件与验证码 ------------------------------ */
 function mailMode() {
   const cfg = readJson(MAIL_FILE, null);
@@ -360,6 +385,15 @@ function handleLogin(req, res) {
 
     const username = String(body.username || '').trim();
     const password = String(body.password || '');
+
+    // 防暴力破解：同一 IP 每分钟 10 次，同一账号每分钟 6 次
+    if (!checkRate('login-ip:' + clientIp(req), 10, 60 * 1000)) {
+      return sendJson(res, 429, { ok: false, error: '登录尝试过于频繁，请 1 分钟后再试' });
+    }
+    if (username && !checkRate('login-user:' + username.toLowerCase(), 6, 60 * 1000)) {
+      return sendJson(res, 429, { ok: false, error: '该账号尝试次数过多，请稍后再试' });
+    }
+
     const user = findUser(username);
 
     if (!user) return sendJson(res, 401, { ok: false, error: '用户名或密码错误' });
@@ -540,6 +574,11 @@ function handleGetComments(req, res, query) {
 function handleAddComment(req, res) {
   const user = getSessionUser(req);
   if (!user) return sendJson(res, 401, { ok: false, error: '请先登录后再评论' });
+
+  // 防刷屏：同一账号每分钟最多 8 条
+  if (!checkRate('comment:' + user.id, 8, 60 * 1000)) {
+    return sendJson(res, 429, { ok: false, error: '评论太频繁了，歇一会儿再发' });
+  }
 
   return readBody(req).then((buf) => {
     let body;
