@@ -576,6 +576,63 @@ a.gtag:hover { color: #d3c4ff; border-color: rgba(139, 92, 246, 0.5); }
 .tile .tn { font-size: 15px; font-weight: 600; }
 .tile .tc { margin-left: auto; font-size: 12.5px; color: var(--muted-2); }
 
+/* ---------------- 标签体系（分组 + 彩色胶囊） ---------------- */
+.tag-group { margin-bottom: 30px; }
+.tag-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.tag-group-head h3 {
+  margin: 0; font-size: 15.5px; font-weight: 700;
+  display: flex; align-items: center; gap: 9px;
+}
+.tag-group-head h3::before {
+  content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--accent-grad);
+}
+.tag-group-head .count { font-size: 12.5px; color: var(--muted-2); }
+.tag-cloud { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.tag-pill {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 10px 15px 10px 13px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, hsla(var(--th), 62%, 34%, 0.16), var(--card) 72%);
+  border: 1px solid var(--line);
+  font-size: 14.5px;
+  overflow: hidden;
+  transition: transform 0.22s var(--ease), border-color 0.22s, box-shadow 0.22s, background 0.22s;
+}
+.tag-pill::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, hsla(var(--th), 72%, 60%, 0.18), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.22s;
+}
+.tag-pill:hover {
+  transform: translateY(-3px);
+  border-color: hsla(var(--th), 72%, 62%, 0.55);
+  box-shadow: 0 8px 22px hsla(var(--th), 70%, 42%, 0.26);
+  background: var(--card-2);
+  color: inherit;
+}
+.tag-pill:hover::before { opacity: 1; }
+.tag-pill .tp-dot {
+  position: relative;
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: hsl(var(--th), 76%, 63%);
+  box-shadow: 0 0 10px hsla(var(--th), 76%, 63%, 0.85);
+}
+.tag-pill .tp-name { position: relative; font-weight: 600; }
+.tag-pill .tp-count {
+  position: relative;
+  font-size: 11.5px; color: var(--muted-2);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  padding: 1px 8px; border-radius: 999px;
+  white-space: nowrap;
+}
+.tag-pill.dim { opacity: 0.78; }
+.tag-pill.dim:hover { opacity: 1; }
+
 /* ---------------- 文章 ---------------- */
 .article { max-width: 812px; }
 .article h1 { font-size: clamp(22px, 2.8vw, 29px); margin: 0 0 10px; line-height: 1.3; letter-spacing: -0.4px; }

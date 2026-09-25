@@ -41,7 +41,27 @@
     return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }
 
-  const allTags = () => countValues(GAMES, (g) => g.tags);
+  // 预设标签分组（作品库为空时标签页依然有内容）
+  const TAG_GROUPS = (D.tagGroups || []).map((g) => ({ name: g.name, tags: g.tags.slice() }));
+
+  // 标签列表：预设标签 + 作品里出现的标签，按收录数量排序
+  function allTags() {
+    const counted = new Map(countValues(GAMES, (g) => g.tags).map((t) => [t.name, t.count]));
+    const seen = new Set();
+    const out = [];
+    TAG_GROUPS.forEach((g) => g.tags.forEach((name) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      out.push({ name, count: counted.get(name) || 0 });
+    }));
+    counted.forEach((count, name) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      out.push({ name, count });
+    });
+    return out.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+  }
+
   const allCompanies = () => countValues(GAMES, (g) => g.circle);
   const allPlatforms = () => countValues(GAMES, (g) => g.platforms);
   const allLanguages = () => countValues(GAMES, (g) => g.languages);
@@ -531,23 +551,64 @@
     observeReveal(host);
   }
 
+  function tagPill(t) {
+    const hue = hash(t.name) % 360;
+    const dim = !t.count;
+    return `<a class="tag-pill${dim ? ' dim' : ''}" href="galgame.html?tag=${encodeURIComponent(t.name)}" style="--th:${hue}">
+        <span class="tp-dot"></span>
+        <span class="tp-name">${esc(t.name)}</span>
+        ${t.count ? `<span class="tp-count">${t.count} 部</span>` : ''}
+      </a>`;
+  }
+
   function initTags() {
-    const tags = allTags();
-    const host = $('#tag-wall');
-    host.innerHTML = tags.map((t, i) => `
-      <a class="tile reveal" href="galgame.html?tag=${encodeURIComponent(t.name)}">
-        <span class="dot" style="color:hsl(${(i * 37 + 260) % 360} 75% 62%);background:hsl(${(i * 37 + 260) % 360} 75% 62%)"></span>
-        <span class="tn">${esc(t.name)}</span>
-        <span class="tc">${t.count} 部</span>
-      </a>`).join('');
+    const counts = new Map(countValues(GAMES, (g) => g.tags).map((t) => [t.name, t.count]));
+
+    const groups = TAG_GROUPS.map((g) => ({
+      name: g.name,
+      tags: g.tags.map((name) => ({ name, count: counts.get(name) || 0 })),
+    }));
+
+    // 作品里出现、但不在预设分组里的标签 → 归到「更多标签」
+    const presetSet = new Set(TAG_GROUPS.reduce((acc, g) => acc.concat(g.tags), []));
+    const extra = [];
+    counts.forEach((count, name) => { if (!presetSet.has(name)) extra.push({ name, count }); });
+    if (extra.length) groups.push({ name: '更多标签', tags: extra.sort((a, b) => b.count - a.count) });
+
+    const host = $('#tag-groups');
+    const total = groups.reduce((n, g) => n + g.tags.length, 0);
+    const used = groups.reduce((n, g) => n + g.tags.filter((t) => t.count).length, 0);
+
+    host.innerHTML = groups.map((g) => `
+      <section class="tag-group">
+        <div class="tag-group-head">
+          <h3>${esc(g.name)}</h3>
+          <span class="count">${g.tags.length} 个</span>
+        </div>
+        <div class="tag-cloud">${g.tags.map(tagPill).join('')}</div>
+      </section>`).join('') + `
+      <p class="small muted" style="margin:22px 0 0">
+        共 ${total} 个标签，其中 ${used} 个已有作品收录。标签会自动跟随你上传的作品更新。
+      </p>`;
+
     const c = $('#tag-count');
-    if (c) c.textContent = `共 ${tags.length} 个标签`;
+    if (c) c.textContent = `共 ${total} 个标签`;
     observeReveal(host);
   }
 
   function initCompanies() {
     const list = allCompanies();
     const host = $('#company-list');
+    const top = $('#company-top');
+
+    if (!list.length) {
+      host.innerHTML = '<div class="empty" style="grid-column:1/-1">还没有会社条目。上传作品后，会社会自动收录在这里。<br><a class="btn btn-primary" href="upload.html" style="margin-top:14px">上传一部作品</a></div>';
+      if (top) top.innerHTML = '<p class="muted small" style="margin:0">暂无数据。</p>';
+      const c0 = $('#company-count');
+      if (c0) c0.textContent = '共 0 家公司';
+      return;
+    }
+
     host.innerHTML = list.map((c, i) => `
       <a class="tile reveal" href="galgame.html?company=${encodeURIComponent(c.name)}">
         <span class="dot" style="color:hsl(${(i * 53 + 200) % 360} 70% 60%);background:hsl(${(i * 53 + 200) % 360} 70% 60%)"></span>
@@ -556,7 +617,6 @@
       </a>`).join('');
     const c = $('#company-count');
     if (c) c.textContent = `共 ${list.length} 家公司`;
-    const top = $('#company-top');
     if (top) {
       top.innerHTML = list.slice(0, 4).map((c) => {
         const g = GAMES.filter((x) => x.circle === c.name).sort((a, b) => b.rating - a.rating)[0];
