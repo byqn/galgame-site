@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galgame 资源库 - Galgame 资源站</title>
+  <meta name="description" content="全部作品索引：关键词搜索，按标签、会社、平台、语言筛选，支持更新时间/评分/发售日排序。">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="galgame">
+  <header id="topbar"></header>
+
+  <main class="wrap">
+    <section class="section">
+      <div class="section-head">
+        <h2>Galgame 资源库</h2>
+        <span class="count" id="lib-count">共 0 部作品</span>
+      </div>
+
+      <div class="toolbar">
+        <input id="lib-search" type="search" placeholder="搜索作品名 / 原题 / 会社 / 简介…" autocomplete="off">
+        <select id="lib-company" aria-label="会社"></select>
+        <select id="lib-platform" aria-label="平台"></select>
+        <select id="lib-language" aria-label="语言"></select>
+        <select id="lib-sort" aria-label="排序">
+          <option value="updated">最近更新</option>
+          <option value="rating">评分最高</option>
+          <option value="release">发售最新</option>
+          <option value="title">标题排序</option>
+        </select>
+      </div>
+
+      <div class="chips" id="lib-tags"></div>
+
+      <div class="ggrid" id="lib-grid"></div>
+      <div class="empty" id="lib-empty" style="display:none">没有符合条件的作品，换个关键词或筛选条件试试。</div>
+      <div class="pager" id="lib-pager"></div>
+    </section>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+</body>
+</html>

@@ -3,52 +3,80 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>首页 - Galgame 资源站</title>
-  <meta name="description" content="Galgame 作品索引、攻略与资讯整理，支持搜索、标签筛选与版本查询。">
+  <title>Galgame 资源站 - 一站式 Galgame 资源索引</title>
+  <meta name="description" content="一站式 Galgame 资源索引：最新作品、高分推荐、会社与标签检索、补丁与教程。">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body data-page="home">
-  <header id="site-header"></header>
+  <header id="topbar"></header>
 
-  <main class="container">
-    <section class="hero">
-      <h1>找游戏、看攻略，<span>少走弯路</span></h1>
-      <p>
-        目前收录 <b id="stat-games">0</b> 部作品、<b id="stat-posts">0</b> 篇攻略与资讯。
-        支持按标题、社团、标签检索，详情页可查版本、语言与相关攻略。
-      </p>
-      <form class="searchbar" id="home-search">
-        <input id="home-search-input" type="search" placeholder="搜索作品名 / 原题 / 社团 / 标签…" autocomplete="off">
-        <button class="btn btn-primary" type="submit">搜索</button>
-      </form>
+  <main class="wrap">
+    <!-- Hero：左侧介绍卡 + 右侧公告卡 -->
+    <section class="hero-grid">
+      <div class="hero-main">
+        <h1>一站式 Galgame 资源索引</h1>
+        <p>免费、干净的 Galgame 作品资料库：按标签、会社、平台、语言快速检索，补丁与教程一处找齐。</p>
+        <div class="social-row" id="social-row"></div>
+      </div>
+      <div id="notice-card"></div>
     </section>
 
+    <!-- 快捷入口 -->
+    <section class="quick-row">
+      <a class="quick" href="tag.html">
+        <span class="qi p">🏷️</span>
+        <span>
+          <span class="qt">标签检索</span><br>
+          <span class="qs" id="q-tag">—</span>
+        </span>
+      </a>
+      <a class="quick" href="company.html">
+        <span class="qi k">🏢</span>
+        <span>
+          <span class="qt">游戏会社</span><br>
+          <span class="qs" id="q-company">—</span>
+        </span>
+      </a>
+      <a class="quick" href="resource.html">
+        <span class="qi g">🧩</span>
+        <span>
+          <span class="qt">补丁与教程</span><br>
+          <span class="qs" id="q-resource">—</span>
+        </span>
+      </a>
+    </section>
+
+    <!-- 最新 Galgame -->
     <section class="section">
       <div class="section-head">
-        <h2>最近更新</h2>
-        <a class="more" href="library.html?sort=updated">查看全部 →</a>
+        <h2>最新 Galgame</h2>
+        <span class="count">共 <span id="stat-games">0</span> 部收录</span>
+        <a class="more" href="galgame.html">查看更多 →</a>
       </div>
-      <div class="grid" id="latest-grid"></div>
+      <div class="ggrid" id="latest-grid"></div>
     </section>
 
+    <!-- 高分榜 -->
     <section class="section">
       <div class="section-head">
         <h2>高分推荐</h2>
-        <a class="more" href="library.html?sort=rating">更多高分作品 →</a>
+        <a class="more" href="galgame.html?sort=rating">更多高分 →</a>
       </div>
-      <div class="grid" id="top-grid"></div>
+      <div class="ggrid" id="top-grid"></div>
     </section>
 
+    <!-- 最新补丁 -->
     <section class="section">
       <div class="section-head">
-        <h2>攻略与资讯</h2>
-        <a class="more" href="guides.html">全部文章 →</a>
+        <h2>最新补丁与教程</h2>
+        <span class="count">共 <span id="stat-posts">0</span> 条资源</span>
+        <a class="more" href="resource.html">全部资源 →</a>
       </div>
-      <div class="post-list" id="home-posts"></div>
+      <div class="panel" style="margin-top:0" id="patch-list"></div>
     </section>
   </main>
 
-  <footer id="site-footer"></footer>
+  <footer id="footer"></footer>
 
   <script src="assets/js/data.js"></script>
   <script src="assets/js/common.js"></script>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>网站说明与常见问题 - Galgame 资源站</title>
+  <meta name="description" content="本站收录范围、数据来源、更新方式、常见问题与免责声明。">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="doc">
+  <header id="topbar"></header>
+
+  <main class="wrap">
+    <section class="section">
+      <div class="section-head">
+        <h2>网站公告</h2>
+        <a class="more" href="resource.html">补丁与教程 →</a>
+      </div>
+      <div class="panel" style="margin-top:0" id="doc-notices"></div>
+    </section>
+
+    <section class="section">
+      <article class="article">
+        <h1>网站说明与常见问题</h1>
+        <p class="post-meta">最后更新：2026/09/15</p>
+
+        <div class="panel" id="doc-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 20px;margin-top:0"></div>
+
+        <h2>本站收录什么</h2>
+        <p>整理 Galgame 的作品资料：标题、原题、制作会社、发售日期、平台、语言、标签、简介与截图。资料用于检索与归档，本站不存储、不提供任何游戏文件本体。</p>
+
+        <h2>数据怎么更新</h2>
+        <ul>
+          <li>作品与资源数据全部放在 <code>assets/js/data.js</code>，改这一个文件即可，不需要动页面。</li>
+          <li>加作品：往 <code>games</code> 数组复制一段条目改字段；加补丁/教程：往 <code>posts</code> 数组里加。</li>
+          <li><code>body</code> 里以 <code>## </code> 开头的行渲染成小标题，以 <code>- </code> 开头的行渲染成列表。</li>
+          <li>封面目前是渐变色块占位（<code>cover.hue</code> 控制色调、<code>cover.glyph</code> 是大字），换成真图见 README。</li>
+        </ul>
+
+        <h2>常见问题</h2>
+        <ul>
+          <li><b>下载链接打不开？</b>页面里所有下载地址都是占位符（<code>#</code>），请在 <code>data.js</code> 中替换。</li>
+          <li><b>解压失败？</b>分卷压缩包要全部下载完，用 7-Zip 或 Bandizip 解压，路径别带中文。</li>
+          <li><b>游戏乱码或闪退？</b>看《在 Windows 上正确安装日文 Galgame》与《游戏闪退排查清单》两篇教程。</li>
+          <li><b>找不到想找的作品？</b>用顶部搜索框，或到资源库按会社 / 标签 / 平台筛选。</li>
+        </ul>
+
+        <h2>技术说明</h2>
+        <ul>
+          <li>纯静态站点：无构建、无后端、无依赖，双击 <code>index.html</code> 就能跑。</li>
+          <li>数据用 <code>&lt;script&gt;</code> 引入而非 <code>fetch</code>，所以 <code>file://</code> 直接打开也能正常渲染。</li>
+          <li>搜索、筛选、分页全部在前端完成；筛选状态会写进 URL，方便分享。</li>
+          <li>已启用 GitHub Pages，推送 <code>main</code> 分支即自动更新。</li>
+        </ul>
+
+        <h2>免责声明</h2>
+        <p>本站仅整理公开的作品信息与原创文字内容，不提供、不存储任何游戏文件。示例数据中的下载地址均为占位符，替换为实际链接前请确认你拥有相应的分发权利。请通过官方渠道支持正版。</p>
+      </article>
+    </section>
+  </main>
+
+  <footer id="footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+</body>
+</html>

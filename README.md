@@ -1,87 +1,94 @@
 # galgame-site
 
-> 弄着玩 —— Galgame 作品索引、攻略与资讯站
+> 弄着玩 —— 一站式 Galgame 资源索引站
 
-纯静态站点，零依赖、零构建：双击 `index.html` 就能看，也可以直接部署到 GitHub Pages。
+纯静态站点：零构建、零依赖、无后端。双击 `index.html` 就能跑，也可直接部署到 GitHub Pages。
+
+线上地址：**https://byqn.github.io/galgame-site/**
 
 ## 页面结构
 
-| 文件 | 页面 | 说明 |
+| 文件 | 路由参考 | 说明 |
 | --- | --- | --- |
-| `index.html` | 首页 | 最近更新、高分推荐、攻略资讯入口 |
-| `library.html` | 资源库 | 关键词搜索 + 标签筛选 + 多维排序 |
-| `detail.html` | 作品详情 | `?id=作品id`，含简介、截图占位、下载区、相关攻略与作品 |
-| `guides.html` | 攻略资讯 | 分类（攻略 / 评测 / 资讯）+ 关键词搜索 |
-| `guide.html` | 文章详情 | `?id=文章id` |
-| `about.html` | 关于本站 | 更新方式、技术说明、免责声明 |
+| `index.html` | `/` | 首页：双卡 Hero（介绍 + 公告）、快捷入口、最新 Galgame、高分推荐、最新补丁 |
+| `galgame.html` | `/galgame` | 资源库：搜索 + 标签 / 会社 / 平台 / 语言筛选 + 四种排序 + 分页 |
+| `detail.html` | `/galgame/{id}` | 作品详情：评分、会社、平台语言、简介、截图、下载版本、相关资源与推荐 |
+| `tag.html` | `/tag` | 标签墙，点击标签直接进入筛选后的资源库 |
+| `company.html` | `/company` | 会社列表：热门会社 + 全部会社（含每家代表作品） |
+| `resource.html` | `/resource` | 补丁 / 教程 / 资讯列表，支持类型筛选与搜索 |
+| `post.html` | `/resource/{id}` | 资源或文章正文 |
+| `doc.html` | `/doc` | 网站说明、常见问题、公告、统计与免责声明 |
 
 ## 目录结构
 
 ```
 galgame-site/
-├── index.html / library.html / detail.html / guides.html / guide.html / about.html
+├── index.html / galgame.html / detail.html / tag.html / company.html
+├── resource.html / post.html / doc.html
 └── assets/
-    ├── css/style.css      # 全部样式（深色主题 + 响应式）
+    ├── css/style.css      # 全部样式（深色社区风 + 响应式）
     └── js/
-        ├── data.js        # ★ 数据层：作品、文章都在这里改
-        └── common.js      # 公共逻辑：导航、卡片渲染、搜索、筛选、排序
+        ├── data.js        # ★ 数据层：作品 / 资源 / 公告都在这里改
+        └── common.js      # 公共逻辑：导航、卡片、筛选、分页、各页面装配
 ```
 
 ## 怎么加内容
 
-编辑 `assets/js/data.js`：
+只改 `assets/js/data.js`：
 
-**加一部作品**：往 `games` 数组里复制一段已有条目，改字段即可。
+**加作品** —— 往 `games` 数组复制一段改字段：
 
 ```js
 {
-  id: 'unique-id',          // 唯一 id，详情页链接 ?id=unique-id
-  title: '作品名', originalTitle: '原题', circle: '社团',
+  id: 'unique-id',                      // 详情页链接 ?id=unique-id
+  title: '作品名', originalTitle: '原题', circle: '会社',
   releaseDate: '2026-01-01', updatedAt: '2026-09-01',
-  rating: 8.5, tags: ['恋爱', '治愈'],
-  languages: ['简体中文'], platforms: ['Windows'], size: '3 GB', version: 'v1.0',
-  cover: { hue: 270, glyph: '雪' },   // hue 控制封面色调，glyph 是封面大字
+  rating: 8.5, views: '4.1k',           // 卡片上显示 ★ 8.5 · 4.1k
+  tags: ['恋爱', '治愈'], platforms: ['PC'], languages: ['官方中文'],
+  size: '3 GB', version: 'v1.0',
+  isNew: true,                          // 显示「新发布」角标
+  cover: { hue: 270, glyph: '雪' },     // 色调 + 封面大字
   summary: '简介……',
   screenshots: ['场景一', '场景二'],
   downloads: [{ label: '百度网盘', url: '#', code: 'xxxx' }],
-  guideId: null,            // 可选，关联的攻略 id
 }
 ```
 
-**加一篇文章**：往 `posts` 数组里加，`body` 是段落数组：
+**加补丁 / 教程 / 资讯** —— 往 `posts` 数组加，`category` 决定彩色标签：
 
-- `'## 标题'` → 渲染成小标题
-- `'- 条目'` → 渲染成列表
-- 其它字符串 → 普通段落
+- `category: '补丁' | '教程' | '资讯'`
+- `body` 为段落数组：`'## 标题'` → 小标题，`'- 条目'` → 列表，普通字符串 → 段落
 
-**换真实封面图**：图片放进 `assets/img/`，然后改 `common.js` 里的 `coverHtml()`，把渐变色块换成 `<img>`。
+**加公告** —— 往 `notices` 数组加，第一条会显示在首页 Hero 右侧卡片。
+
+**换真实封面图** —— 图片放进 `assets/img/`，改 `common.js` 里的 `coverHtml()`，把渐变色块换成 `<img>`。
 
 ## 本地预览
 
-方式一：直接双击 `index.html`（数据用 `<script>` 引入，`file://` 下也能正常渲染）。
+方式一：双击 `index.html`（数据用 `<script>` 引入，`file://` 下也能正常渲染）。
 
-方式二：起一个本地服务（推荐，便于手机同局域网预览）：
+方式二：起本地服务（推荐，便于手机同局域网预览）：
 
 ```powershell
 python -m http.server 8000
-# 然后访问 http://127.0.0.1:8000
+# 访问 http://127.0.0.1:8000
 ```
 
-## 部署到 GitHub Pages
+VS Code 里按 `Alt+L` 用 Live Server 打开也可以。
 
-1. 仓库 **Settings → Pages**；
-2. Source 选 **Deploy from a branch**，分支选 `main`、目录 `/ (root)`，保存；
-3. 稍等片刻即可通过 `https://byqn.github.io/galgame-site/` 访问。
+## 部署
+
+已配置 GitHub Pages（`main` 分支根目录）。推送后稍等片刻即自动更新：https://byqn.github.io/galgame-site/
 
 ## 下一步可做
 
-- [ ] 真实封面图与截图（替换占位色块）
-- [ ] 作品详情页加「收藏 / 想看」本地记录（localStorage）
-- [ ] 列表分页或无限滚动（作品上千条之后）
-- [ ] 搜索关键词高亮、搜索历史
+- [ ] 真实封面图与截图（替换渐变色块）
+- [ ] 作品收藏 / 想看（localStorage 本地记录）
+- [ ] 搜索关键词高亮与搜索历史
 - [ ] 浅色 / 深色主题切换
-- [ ] RSS 或 JSON 数据源，方便用脚本批量喂数据
+- [ ] 评论区（需要后端或第三方服务）
+- [ ] 用脚本从 JSON 批量导入作品数据
 
 ## 免责声明
 
-本项目仅用于整理公开的作品信息与原创攻略内容。示例数据中的下载地址均为占位符（`#`），替换为任何实际链接前请确认你拥有相应分发权利。请支持正版。
+本项目仅用于整理公开的作品信息与原创文字内容，不存储、不提供任何游戏文件。示例数据中的下载地址均为占位符（`#`），替换为实际链接前请确认你拥有相应的分发权利。请支持正版。
