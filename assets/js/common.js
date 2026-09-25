@@ -690,9 +690,17 @@
     const social = $('#social-row');
     if (social) {
       social.innerHTML = (SITE.links || []).map((l) => {
-        const isQQ = /QQ/i.test(l.label);
-        return `<a class="social-btn" href="${isQQ ? 'javascript:void(0)' : 'doc.html'}"${isQQ ? ` data-qq="${esc(l.value)}"` : ''}>
-            <span>${l.icon || '🔗'}</span>${esc(l.label)} · ${esc(l.value)}</a>`;
+        const icon = l.icon || '🔗';
+        // QQ 群：走唤起 / 弹窗逻辑
+        if (/QQ/i.test(l.label)) {
+          return `<a class="social-btn" href="javascript:void(0)" data-qq="${esc(l.value)}">
+              <span>${icon}</span>${esc(l.label)} · ${esc(l.value)}</a>`;
+        }
+        // 其他：配了 url 就直接跳转（新标签），否则指向文档页
+        const href = l.url || 'doc.html';
+        const ext = l.url ? ' target="_blank" rel="noopener"' : '';
+        return `<a class="social-btn" href="${esc(href)}"${ext}>
+            <span>${icon}</span>${esc(l.label)} · ${esc(l.value)}</a>`;
       }).join('');
       social.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-qq]');
