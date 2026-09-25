@@ -87,6 +87,46 @@ galgame-site/
 - 出于安全考虑，上传接口只接受 Host 为 `localhost` / `127.0.0.1` 的请求 —— 即使站点通过 Cloudflare 隧道对公网开放，别人也无法调用上传。
 - 想让上传的作品出现在线上版本：本地保存后 `git add . && git commit && git push`，图片和 JSON 会一起进仓库。
 
+## 邮箱验证与 SMTP 配置
+
+注册需要邮箱验证码。默认是**本机模式**：不会真的发邮件，验证码会直接显示在页面提示里（只对 localhost 访问回传），服务器控制台也会打印一条。
+
+想真的发邮件，两步：
+
+**1. 安装依赖**
+
+```powershell
+npm install nodemailer
+```
+
+**2. 新建 `data/mail.json`**
+
+```json
+{
+  "enabled": true,
+  "host": "smtp.qq.com",
+  "port": 465,
+  "secure": true,
+  "user": "你的邮箱@qq.com",
+  "pass": "SMTP 授权码（不是登录密码）",
+  "from": "小萝莉の资源站 <你的邮箱@qq.com>"
+}
+```
+
+重启服务器后，`/api/ping` 里的 `mail` 字段会从 `local` 变成 `smtp`，验证码就会真的发到邮箱。
+
+常见邮箱参数：
+
+| 邮箱 | host | port |
+| --- | --- | --- |
+| QQ 邮箱 | `smtp.qq.com` | 465 |
+| 163 邮箱 | `smtp.163.com` | 465 |
+| Gmail | `smtp.gmail.com` | 465 |
+| Outlook | `smtp.office365.com` | 587 |
+
+> 授权码要去邮箱设置的「POP3/SMTP 服务」里开启后生成，不是你登录邮箱的密码。
+> `data/mail.json` 含敏感凭据，已在 `.gitignore` 中排除，不会进版本库。
+
 ## 本地预览
 
 方式一：双击 `index.html`（数据用 `<script>` 引入，`file://` 下也能正常渲染）。

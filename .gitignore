@@ -11,3 +11,7 @@ files/
 # 账号与会话数据（含凭据哈希，绝不进版本库）
 data/users.json
 data/sessions.json
+# SMTP 凭据
+data/mail.json
+data/codes.json
+data/mail-outbox.json
