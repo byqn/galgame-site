@@ -66,18 +66,55 @@ const MIME = {
   '.pdf': 'application/pdf',
 };
 
+/* ------------------------------ 稳定性保护 ------------------------------ */
+// 兜底：任何未捕获异常/未处理拒绝都只记日志，不让整个服务退出
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] 未捕获异常:', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] 未处理的 Promise 拒绝:', reason && reason.stack ? reason.stack : reason);
+});
+
+/* 统一包装路由处理器：
+   有些 handler 在校验失败时会提前 `return sendJson(...)`（值是 undefined），
+   路由层若直接 .catch() 就会抛 TypeError 并让进程退出。这里统一兜住。 */
+function guard(res, fn) {
+  try {
+    const ret = fn();
+    if (ret && typeof ret.catch === 'function') {
+      ret.catch((e) => {
+        console.error('[handler] 异步处理失败:', e && e.stack ? e.stack : e);
+        sendJson(res, 500, { ok: false, error: '服务器处理失败' });
+      });
+    }
+  } catch (e) {
+    console.error('[handler] 同步异常:', e && e.stack ? e.stack : e);
+    sendJson(res, 500, { ok: false, error: '服务器处理失败' });
+  }
+}
+
 /* ------------------------------ 基础工具 ------------------------------ */
 function send(res, code, body, type) {
-  res.writeHead(code, { 'Content-Type': type || 'text/plain; charset=utf-8' });
-  res.end(body);
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    res.writeHead(code, { 'Content-Type': type || 'text/plain; charset=utf-8' });
+    res.end(body);
+  } catch (e) {
+    console.error('[send] 响应写入失败（客户端可能已断开）:', e.message);
+  }
 }
 
 function sendJson(res, code, obj) {
-  res.writeHead(code, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  res.end(JSON.stringify(obj));
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    res.writeHead(code, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify(obj));
+  } catch (e) {
+    console.error('[sendJson] 响应写入失败（客户端可能已断开）:', e.message);
+  }
 }
 
 function readJson(file, fallback) {
@@ -968,7 +1005,11 @@ function streamFile(file, res, req) {
 }
 
 /* ------------------------------ 服务器 ------------------------------ */
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
+  // 客户端中断或流错误不能影响整个进程
+  req.on('error', (e) => console.error('[req] 请求流错误:', e.message));
+  res.on('error', (e) => console.error('[res] 响应流错误:', e.message));
+
   let urlPath;
   let query;
   try {
@@ -999,43 +1040,43 @@ http.createServer((req, res) => {
     return sendJson(res, 200, readJson(POSTS_FILE, []));
   }
   if (urlPath === '/api/upload-post' && req.method === 'POST') {
-    return handleUploadPost(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+    return guard(res, () => handleUploadPost(req, res));
   }
   if (urlPath === '/api/manage' && req.method === 'POST') {
-    return handleManage(req, res);
+    return guard(res, () => handleManage(req, res));
   }
   if (urlPath === '/api/comments' && req.method === 'GET') {
-    return handleGetComments(req, res, query);
+    return guard(res, () => handleGetComments(req, res, query));
   }
   if (urlPath === '/api/comment' && req.method === 'POST') {
-    return handleAddComment(req, res);
+    return guard(res, () => handleAddComment(req, res));
   }
   if (urlPath === '/api/comment-delete' && req.method === 'POST') {
-    return handleDeleteComment(req, res);
+    return guard(res, () => handleDeleteComment(req, res));
   }
   if (urlPath === '/api/import' && req.method === 'POST') {
-    return handleImport(req, res);
+    return guard(res, () => handleImport(req, res));
   }
   if (urlPath === '/api/files' && req.method === 'GET') {
     return sendJson(res, 200, listFiles());
   }
   if (urlPath === '/api/send-code' && req.method === 'POST') {
-    return handleSendCode(req, res);
+    return guard(res, () => handleSendCode(req, res));
   }
   if (urlPath === '/api/reset-code' && req.method === 'POST') {
-    return handleResetCode(req, res);
+    return guard(res, () => handleResetCode(req, res));
   }
   if (urlPath === '/api/reset-password' && req.method === 'POST') {
-    return handleResetPassword(req, res);
+    return guard(res, () => handleResetPassword(req, res));
   }
   if (urlPath === '/api/register' && req.method === 'POST') {
-    return handleRegister(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+    return guard(res, () => handleRegister(req, res));
   }
   if (urlPath === '/api/login' && req.method === 'POST') {
-    return handleLogin(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+    return guard(res, () => handleLogin(req, res));
   }
   if (urlPath === '/api/logout' && req.method === 'POST') {
-    return handleLogout(req, res);
+    return guard(res, () => handleLogout(req, res));
   }
   if (urlPath === '/api/me' && req.method === 'GET') {
     const user = getSessionUser(req);
@@ -1044,15 +1085,22 @@ http.createServer((req, res) => {
       : sendJson(res, 401, { ok: false, error: '未登录或登录已过期' });
   }
   if (urlPath === '/api/upload' && req.method === 'POST') {
-    return handleUpload(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
+    return guard(res, () => handleUpload(req, res));
   }
   if (urlPath === '/api/upload-file' && req.method === 'POST') {
-    return handleUploadFile(req, res, query);
+    return guard(res, () => handleUploadFile(req, res, query));
   }
 
   // ---------- 静态文件 ----------
   serveStatic(req, res, urlPath);
-}).listen(PORT, () => {
+});
+
+// 畸形请求（含客户端提前断开）不应让进程退出
+server.on('clientError', (err, socket) => {
+  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+});
+
+server.listen(PORT, () => {
   console.log(`[serve] 站点目录: ${ROOT}`);
   console.log(`[serve] 本机访问: http://localhost:${PORT}`);
   console.log('[serve] 作品上传 / 账号注册登录 / 大文件上传下载 已启用（写操作仅限 localhost）');
