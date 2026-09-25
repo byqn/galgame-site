@@ -1,5 +1,5 @@
 /* ==========================================================================
-   公共逻辑：导航、页脚、卡片与列表组件、筛选、分页、各页面装配
+   公共逻辑 v2：导航、组件、程序化封面、筛选分页、各页面装配
    依赖 data.js（必须先引入）
    ========================================================================== */
 
@@ -25,13 +25,18 @@
   const getGame = (id) => GAMES.find((g) => g.id === id) || null;
   const getPost = (id) => POSTS.find((p) => p.id === id) || null;
 
-  // 统计每个取值出现的次数：[{ name, count }]，按次数降序
+  function hash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < String(str).length; i++) {
+      h ^= String(str).charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  }
+
   function countValues(list, pick) {
     const map = new Map();
-    list.forEach((item) => {
-      const vals = [].concat(pick(item));
-      vals.forEach((v) => v && map.set(v, (map.get(v) || 0) + 1));
-    });
+    list.forEach((item) => [].concat(pick(item)).forEach((v) => v && map.set(v, (map.get(v) || 0) + 1)));
     return Array.from(map, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }
 
@@ -39,6 +44,94 @@
   const allCompanies = () => countValues(GAMES, (g) => g.circle);
   const allPlatforms = () => countValues(GAMES, (g) => g.platforms);
   const allLanguages = () => countValues(GAMES, (g) => g.languages);
+
+  /* ------------------------------ 图标 ------------------------------ */
+  const svg = (body, cls) => `<svg class="${cls || ''}" viewBox="0 0 24 24" ${body}`;
+  const ICON = {
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.2-4.2"/></svg>',
+    star: '<svg class="star-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.9 6 6.6.9-4.8 4.5 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.5l6.6-.9z"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4.8a2 2 0 0 1 2-2H12a2 2 0 0 1 1.4.6l7.2 7.2a2 2 0 0 1 0 2.8Z"/><circle cx="7.6" cy="7.6" r="1.4" fill="currentColor" stroke="none"/></svg>',
+    company: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v15"/><path d="M15 10h4a1 1 0 0 1 1 1v10"/><path d="M2.5 21h19"/><path d="M7.5 9h3M7.5 13h3M7.5 17h3"/></svg>',
+    patch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><path d="M17.25 13.5v7.5M13.5 17.25h7.5"/></svg>',
+    github: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.79 2.73 1.27 3.4.97.11-.76.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.42.36.79 1.08.79 2.18v3.23c0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>',
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+  };
+
+  /* --------------------- 程序化封面（壁纸质感） ---------------------
+     每部作品按 id 哈希选一种图案变体，按 cover.hue 生成配色，
+     叠一层全局噪点 + 顶部光晕，得到接近壁纸的效果。 */
+  const ART_VARIANTS = 6;
+
+  function artLayers(v, uid) {
+    const w = 400, h = 250;
+    switch (v) {
+      case 0: // 同心光环
+        return `
+          <circle cx="298" cy="66" r="46" fill="rgba(255,255,255,.10)"/>
+          <circle cx="298" cy="66" r="80" fill="none" stroke="rgba(255,255,255,.20)"/>
+          <circle cx="298" cy="66" r="122" fill="none" stroke="rgba(255,255,255,.10)"/>
+          <circle cx="298" cy="66" r="166" fill="none" stroke="rgba(255,255,255,.055)"/>`;
+      case 1: // 斜向流光
+        return Array.from({ length: 15 }, (_, i) =>
+          `<line x1="${-60 + i * 34}" y1="${h}" x2="${60 + i * 34}" y2="0" stroke="rgba(255,255,255,.075)" stroke-width="1"/>`
+        ).join('') + `<circle cx="86" cy="196" r="70" fill="rgba(255,255,255,.05)"/>`;
+      case 2: // 波纹
+        return Array.from({ length: 5 }, (_, i) =>
+          `<path d="M0 ${120 + i * 30} Q 100 ${98 + i * 30} 200 ${120 + i * 30} T 400 ${120 + i * 30}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="1.2"/>`
+        ).join('') + `<circle cx="322" cy="52" r="26" fill="rgba(255,255,255,.14)"/>`;
+      case 3: // 透视网格 + 星点
+        return Array.from({ length: 5 }, (_, i) =>
+          `<line x1="0" y1="${162 + i * i * 5}" x2="400" y2="${162 + i * i * 5}" stroke="rgba(255,255,255,.08)"/>`
+        ).join('') +
+          Array.from({ length: 9 }, (_, i) =>
+            `<line x1="${i * 52}" y1="250" x2="${178 + (i - 4) * 24}" y2="150" stroke="rgba(255,255,255,.06)"/>`
+          ).join('') +
+          Array.from({ length: 14 }, (_, i) => {
+            const x = (hash(uid + 's' + i) % 380) + 10;
+            const y = (hash(uid + 't' + i) % 110) + 12;
+            const r = ((hash(uid + 'r' + i) % 18) + 8) / 10;
+            return `<circle cx="${x}" cy="${y}" r="${r.toFixed(1)}" fill="rgba(255,255,255,.5)"/>`;
+          }).join('');
+      case 4: // 层叠山影
+        return `
+          <circle cx="300" cy="70" r="30" fill="rgba(255,255,255,.16)"/>
+          <path d="M0 250 L 62 138 L 116 188 L 186 104 L 254 176 L 322 126 L 400 196 L 400 250 Z" fill="rgba(0,0,0,.26)"/>
+          <path d="M0 250 L 84 180 L 156 212 L 236 160 L 318 208 L 400 172 L 400 250 Z" fill="rgba(0,0,0,.38)"/>`;
+      default: // 气泡
+        return Array.from({ length: 9 }, (_, i) => {
+          const x = hash(uid + 'bx' + i) % 400;
+          const y = hash(uid + 'by' + i) % 250;
+          const r = (hash(uid + 'br' + i) % 46) + 12;
+          const o = (((hash(uid + 'bo' + i) % 12) + 4) / 100).toFixed(2);
+          return `<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,255,255,${o})"/>`;
+        }).join('');
+    }
+  }
+
+  function coverArt(game, wide) {
+    const hue = (game.cover && game.cover.hue) || 270;
+    const uid = 'a' + hash(game.id).toString(36);
+    const v = hash(game.id) % ART_VARIANTS;
+    const [w, h] = wide ? [400, 250] : [300, 400];
+    return `<svg class="art" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="${uid}g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="hsl(${hue} 58% 33%)"/>
+            <stop offset="55%" stop-color="hsl(${(hue + 24) % 360} 52% 21%)"/>
+            <stop offset="100%" stop-color="hsl(${(hue + 46) % 360} 50% 9%)"/>
+          </linearGradient>
+          <radialGradient id="${uid}r" cx="78%" cy="6%" r="72%">
+            <stop offset="0" stop-color="rgba(255,255,255,.30)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+          </radialGradient>
+        </defs>
+        <rect width="${w}" height="${h}" fill="url(#${uid}g)"/>
+        <g>${artLayers(v, uid)}</g>
+        <rect width="${w}" height="${h}" fill="url(#${uid}r)"/>
+        <rect width="${w}" height="${h}" filter="url(#grain)" opacity=".055" style="mix-blend-mode:overlay"/>
+      </svg>`;
+  }
 
   /* ------------------------------ 组件 ------------------------------ */
   const NAV = [
@@ -56,16 +149,19 @@
     host.className = 'topbar';
     host.innerHTML = `
       <div class="wrap topbar-inner">
-        <a class="logo" href="index.html"><b>Galgame</b><span>资源站</span></a>
+        <a class="logo" href="index.html">
+          <span class="mark">G</span>
+          <span><b>Galgame</b> <span>资源站</span></span>
+        </a>
         <nav class="menu">
           ${NAV.map((n) => `<a href="${n.href}" class="${n.key === active ? 'active' : ''}">${n.text}</a>`).join('')}
         </nav>
         <div class="topbar-actions">
           <form class="top-search" id="top-search">
-            <span class="muted">🔍</span>
+            ${ICON.search}
             <input type="search" placeholder="搜索作品…" autocomplete="off" aria-label="搜索作品">
           </form>
-          <a class="icon-btn" href="${SITE.repo}" target="_blank" rel="noopener" title="GitHub 仓库">gh</a>
+          <a class="icon-btn" href="${SITE.repo}" target="_blank" rel="noopener" title="GitHub 仓库">${ICON.github}</a>
         </div>
       </div>`;
     const form = $('#top-search');
@@ -97,21 +193,44 @@
       </div>`;
   }
 
-  function coverHtml(game, extra = '') {
-    const hue = (game.cover && game.cover.hue) || 270;
+  // 全局噪点滤镜（只注入一次，所有封面共用）
+  function injectGrainFilter() {
+    if ($('#grain-defs')) return;
+    const holder = document.createElement('div');
+    holder.id = 'grain-defs';
+    holder.setAttribute('aria-hidden', 'true');
+    holder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+    holder.innerHTML = `<svg width="0" height="0"><defs>
+        <filter id="grain">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch"/>
+          <feColorMatrix type="saturate" values="0"/>
+        </filter>
+      </defs></svg>`;
+    document.body.appendChild(holder);
+  }
+
+  // 封面：优先用 assets/img/covers/<id>.jpg，缺失或加载失败时回退到程序化 SVG 底图
+  const COVER_DIR = 'assets/img/covers';
+
+  function coverHtml(game, wide) {
     const glyph = (game.cover && game.cover.glyph) || game.title.slice(0, 1);
-    return `<div class="gcover ${extra}" style="--h:${hue}">
+    return `<div class="gcover">
+        ${coverArt(game, wide)}
+        <img class="cover-img" src="${COVER_DIR}/${encodeURIComponent(game.id)}.jpg"
+             alt="${esc(game.title)} 封面" decoding="async"
+             onerror="this.remove()">
+        <span class="veil"></span>
         <span class="glyph">${esc(glyph)}</span>
-        ${game.isNew ? '<span class="badge-new">新发布</span>' : ''}
+        ${game.isNew ? '<span class="badge-new">NEW</span>' : ''}
       </div>`;
   }
 
   function gameCard(g) {
-    return `<a class="gcard" href="detail.html?id=${encodeURIComponent(g.id)}">
-        ${coverHtml(g)}
+    return `<a class="gcard reveal" href="detail.html?id=${encodeURIComponent(g.id)}">
+        ${coverHtml(g, true)}
         <div class="gbody">
           <div class="gtitle">${esc(g.title)}</div>
-          <div class="gstats"><span class="star">★</span> ${g.rating.toFixed(1)} <span class="muted">·</span> ${esc(g.views)}</div>
+          <div class="gstats">${ICON.star} ${g.rating.toFixed(1)} <span class="dot">·</span> ${esc(g.views)}</div>
           <div class="gtags">${[].concat(g.platforms, g.languages).slice(0, 3).map((t) => `<span class="gtag">${esc(t)}</span>`).join('')}</div>
         </div>
       </a>`;
@@ -130,9 +249,7 @@
       </a>`;
   }
 
-  function emptyHtml(text) {
-    return `<div class="empty">${esc(text || '没有找到符合条件的内容。')}</div>`;
-  }
+  const emptyHtml = (t) => `<div class="empty">${esc(t || '没有找到符合条件的内容。')}</div>`;
 
   /* ------------------------------ 筛选与分页 ------------------------------ */
   function filterGames(state) {
@@ -159,9 +276,7 @@
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     if (pages <= 1) { host.innerHTML = ''; return; }
     let btns = '';
-    for (let i = 1; i <= pages; i++) {
-      btns += `<button class="${i === page ? 'on' : ''}" data-p="${i}">${i}</button>`;
-    }
+    for (let i = 1; i <= pages; i++) btns += `<button class="${i === page ? 'on' : ''}" data-p="${i}">${i}</button>`;
     host.innerHTML = `
       <button data-p="${page - 1}" ${page <= 1 ? 'disabled' : ''}>上一页</button>
       ${btns}
@@ -175,12 +290,9 @@
     };
   }
 
-  // 渲染一排可点击的筛选 chip
   function renderChips(host, { options, active, allLabel = '全部', label = '', onPick }) {
     if (!host) return;
-    const items = [{ name: '', count: null, text: allLabel }].concat(
-      options.map((o) => ({ name: o.name, count: o.count, text: o.name }))
-    );
+    const items = [{ name: '', text: allLabel }].concat(options.map((o) => ({ name: o.name, count: o.count, text: o.name })));
     host.innerHTML =
       (label ? `<span class="label">${esc(label)}</span>` : '') +
       items.map((it) => `<span class="chip ${(it.name || '') === (active || '') ? 'active' : ''}" data-v="${esc(it.name)}">${esc(it.text)}${it.count != null ? ' ' + it.count : ''}</span>`).join('');
@@ -192,7 +304,6 @@
     };
   }
 
-  // 把筛选状态同步到地址栏
   function syncUrl(state, keys) {
     const p = new URLSearchParams();
     keys.forEach((k) => { if (state[k]) p.set(k, state[k]); });
@@ -202,9 +313,45 @@
     history.replaceState(null, '', s ? '?' + s : location.pathname);
   }
 
+  /* ------------------------------ 全局交互 ------------------------------ */
+  function observeReveal(root) {
+    const els = $$('.reveal:not(.in)', root || document);
+    if (!els.length) return;
+    if (!('IntersectionObserver' in window)) { els.forEach((el) => el.classList.add('in')); return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -30px 0px', threshold: 0.02 });
+    els.forEach((el) => io.observe(el));
+  }
+
+  function initGlobalUI() {
+    injectGrainFilter();
+
+    // 顶栏滚动阴影
+    const bar = $('#topbar');
+    const onScroll = () => {
+      if (bar) bar.classList.toggle('scrolled', window.scrollY > 8);
+      const top = $('#to-top');
+      if (top) top.classList.toggle('show', window.scrollY > 600);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    // 返回顶部
+    const btn = document.createElement('button');
+    btn.id = 'to-top';
+    btn.className = 'to-top';
+    btn.type = 'button';
+    btn.title = '返回顶部';
+    btn.innerHTML = ICON.up;
+    btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    document.body.appendChild(btn);
+  }
+
   /* ------------------------------ 页面装配 ------------------------------ */
   function initHome() {
-    // Hero 社交按钮
     const social = $('#social-row');
     if (social) {
       social.innerHTML = (SITE.links || []).map((l) =>
@@ -212,7 +359,6 @@
       ).join('');
     }
 
-    // 公告卡
     const notice = $('#notice-card');
     if (notice && NOTICES.length) {
       const n = NOTICES[0];
@@ -226,28 +372,18 @@
         </div>`;
     }
 
-    // 快捷入口计数
     const setText = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
     setText('#q-tag', allTags().length + ' 个标签');
-    setText('#q-company', allCompanies().length + ' 家会社');
+    setText('#q-company', allCompanies().length + ' 家公司');
     setText('#q-resource', POSTS.filter((p) => p.category === '补丁').length + ' 个补丁');
 
-    // 最新 Galgame
-    const latest = filterGames({ sort: 'updated' }).slice(0, 12);
     const grid = $('#latest-grid');
-    if (grid) grid.innerHTML = latest.map(gameCard).join('') || emptyHtml();
-
-    // 高分榜
-    const top = filterGames({ sort: 'rating' }).slice(0, 4);
+    if (grid) grid.innerHTML = filterGames({ sort: 'updated' }).slice(0, 12).map(gameCard).join('') || emptyHtml();
     const topGrid = $('#top-grid');
-    if (topGrid) topGrid.innerHTML = top.map(gameCard).join('');
-
-    // 最新补丁
-    const patches = POSTS.filter((p) => p.category === '补丁').slice(0, 6);
+    if (topGrid) topGrid.innerHTML = filterGames({ sort: 'rating' }).slice(0, 4).map(gameCard).join('');
     const pl = $('#patch-list');
-    if (pl) pl.innerHTML = patches.map(listRow).join('') || emptyHtml();
+    if (pl) pl.innerHTML = POSTS.filter((p) => p.category === '补丁').slice(0, 6).map(listRow).join('') || emptyHtml();
 
-    // 数据统计
     setText('#stat-games', GAMES.length);
     setText('#stat-posts', POSTS.length);
   }
@@ -268,7 +404,6 @@
     const grid = $('#lib-grid');
     const count = $('#lib-count');
     const pager = $('#lib-pager');
-
     const searchInput = $('#lib-search');
     const companySel = $('#lib-company');
     const platformSel = $('#lib-platform');
@@ -298,11 +433,12 @@
       const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       if (state.page > pages) state.page = pages;
       const slice = list.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
-      grid.innerHTML = slice.map(gameCard).join('') + (total ? '' : '');
+      grid.innerHTML = slice.map(gameCard).join('');
       $('#lib-empty').style.display = total ? 'none' : 'block';
       count.textContent = `共 ${total} 部作品`;
       renderPager(pager, { page: state.page, total, onGo: (p) => { state.page = p; refresh(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
       syncUrl(state, KEYS);
+      observeReveal(grid);
     }
 
     searchInput.addEventListener('input', () => { state.q = searchInput.value; state.page = 1; refresh(); });
@@ -325,9 +461,9 @@
     host.innerHTML = `
       <div class="crumbs"><a href="index.html">首页</a> / <a href="galgame.html">Galgame</a> / ${esc(g.title)}</div>
       <div class="detail-grid">
-        <div class="detail-cover">${coverHtml(g)}</div>
+        <div class="detail-cover">${coverHtml(g, false)}</div>
         <div class="detail-main">
-          <h1>${esc(g.title)}<span class="rating-big"><span class="star" style="color:var(--star)">★</span><span class="n">${g.rating.toFixed(1)}</span></span></h1>
+          <h1>${esc(g.title)}<span class="rating-big">${ICON.star}<span class="n">${g.rating.toFixed(1)}</span></span></h1>
           <div class="orig">${esc(g.originalTitle)} · ${esc(g.circle)}</div>
           <div class="gtags">${g.tags.map((t) => `<a class="gtag" href="galgame.html?tag=${encodeURIComponent(t)}">${esc(t)}</a>`).join('')}</div>
           <div class="meta-grid">
@@ -355,7 +491,7 @@
       <div class="panel">
         <h3>截图预览（占位）</h3>
         <div class="shots">
-          ${g.screenshots.map((s) => `<div class="shot" style="--h:${(g.cover.hue + 30) % 360}">${esc(s)}</div>`).join('')}
+          ${g.screenshots.map((s) => `<div class="shot" style="--h:${(g.cover.hue + 28) % 360}">${esc(s)}</div>`).join('')}
         </div>
       </div>
 
@@ -377,47 +513,49 @@
         <div class="ggrid">${related.map(gameCard).join('')}</div>
       </div>` : ''}
     `;
+    observeReveal(host);
   }
 
   function initTags() {
     const tags = allTags();
     const host = $('#tag-wall');
-    host.innerHTML = tags.map((t) => `
-      <a class="tile" href="galgame.html?tag=${encodeURIComponent(t.name)}">
-        <span class="dot" style="background:hsl(${(t.name.length * 47) % 360} 70% 60%)"></span>
+    host.innerHTML = tags.map((t, i) => `
+      <a class="tile reveal" href="galgame.html?tag=${encodeURIComponent(t.name)}">
+        <span class="dot" style="color:hsl(${(i * 37 + 260) % 360} 75% 62%);background:hsl(${(i * 37 + 260) % 360} 75% 62%)"></span>
         <span class="tn">${esc(t.name)}</span>
         <span class="tc">${t.count} 部</span>
       </a>`).join('');
     const c = $('#tag-count');
     if (c) c.textContent = `共 ${tags.length} 个标签`;
+    observeReveal(host);
   }
 
   function initCompanies() {
     const list = allCompanies();
     const host = $('#company-list');
-    host.innerHTML = list.map((c) => {
-      const games = GAMES.filter((g) => g.circle === c.name);
-      const hue = (c.name.length * 61) % 360;
-      return `<a class="tile" href="galgame.html?company=${encodeURIComponent(c.name)}">
-          <span class="dot" style="background:hsl(${hue} 65% 58%)"></span>
-          <span class="tn">${esc(c.name)}</span>
-          <span class="tc">${c.count} 部</span>
-        </a>`;
-    }).join('');
+    host.innerHTML = list.map((c, i) => `
+      <a class="tile reveal" href="galgame.html?company=${encodeURIComponent(c.name)}">
+        <span class="dot" style="color:hsl(${(i * 53 + 200) % 360} 70% 60%);background:hsl(${(i * 53 + 200) % 360} 70% 60%)"></span>
+        <span class="tn">${esc(c.name)}</span>
+        <span class="tc">${c.count} 部</span>
+      </a>`).join('');
     const c = $('#company-count');
-    if (c) c.textContent = `共 ${list.length} 家会社`;
+    if (c) c.textContent = `共 ${list.length} 家公司`;
     const top = $('#company-top');
-    if (top) top.innerHTML = list.slice(0, 4).map((c) => {
-      const g = GAMES.filter((x) => x.circle === c.name).sort((a, b) => b.rating - a.rating)[0];
-      return `<div class="list-item">
-          <div style="flex:1">
-            <div class="li-title">${esc(c.name)}</div>
-            <div class="li-desc">代表作品：${esc(g.title)}（★ ${g.rating.toFixed(1)}）</div>
-            <div class="li-meta">收录 ${c.count} 部作品</div>
-          </div>
-          <a class="btn" href="galgame.html?company=${encodeURIComponent(c.name)}">查看</a>
-        </div>`;
-    }).join('');
+    if (top) {
+      top.innerHTML = list.slice(0, 4).map((c) => {
+        const g = GAMES.filter((x) => x.circle === c.name).sort((a, b) => b.rating - a.rating)[0];
+        return `<div class="list-item">
+            <div style="flex:1">
+              <div class="li-title">${esc(c.name)}</div>
+              <div class="li-desc">代表作品：${esc(g.title)}（★ ${g.rating.toFixed(1)}）</div>
+              <div class="li-meta">收录 ${c.count} 部作品</div>
+            </div>
+            <a class="btn" href="galgame.html?company=${encodeURIComponent(c.name)}">查看</a>
+          </div>`;
+      }).join('');
+    }
+    observeReveal(host);
   }
 
   function initResources() {
@@ -428,11 +566,9 @@
     const input = $('#res-search');
     input.value = state.q;
 
-    const cats = countValues(POSTS, (p) => p.category)
-      .map((c) => ({ name: c.name }));
-
     renderChips($('#res-cats'), {
-      options: cats, active: state.cat, label: '类型：',
+      options: countValues(POSTS, (p) => p.category).map((c) => ({ name: c.name })),
+      active: state.cat, label: '类型：',
       onPick: (v) => { state.cat = v; refresh(); },
     });
 
@@ -507,17 +643,14 @@
     const page = document.body.dataset.page || '';
     renderHeader(page);
     renderFooter();
+    initGlobalUI();
     const routes = {
-      home: initHome,
-      galgame: initLibrary,
-      detail: initDetail,
-      tag: initTags,
-      company: initCompanies,
-      resource: initResources,
-      post: initPost,
-      doc: initDoc,
+      home: initHome, galgame: initLibrary, detail: initDetail,
+      tag: initTags, company: initCompanies, resource: initResources,
+      post: initPost, doc: initDoc,
     };
     (routes[page] || function () {})();
+    observeReveal(document);
   }
 
   document.addEventListener('DOMContentLoaded', init);
