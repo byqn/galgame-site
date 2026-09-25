@@ -1,0 +1,11 @@
+# 统一换行符，避免 Windows 上出现满屏 CRLF 改动
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary

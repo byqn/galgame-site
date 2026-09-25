@@ -1,0 +1,14 @@
+{
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "html.format.wrapLineLength": 0,
+  "liveServer.settings.port": 5500,
+  "liveServer.settings.file": "index.html",
+  "liveServer.settings.donotShowInfoMsg": true,
+  "search.exclude": {
+    "**/.git": true
+  }
+}
