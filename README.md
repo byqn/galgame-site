@@ -80,6 +80,18 @@ VS Code 里按 `Alt+L` 用 Live Server 打开也可以。
 
 已配置 GitHub Pages（`main` 分支根目录）。推送后稍等片刻即自动更新：https://byqn.github.io/galgame-site/
 
+## 自托管（用本机当服务器）
+
+```powershell
+# 只在本机 / 局域网跑
+.\deploy\start-local.ps1
+
+# 本机跑 + Cloudflare 隧道，打印一个公网地址
+.\deploy\start-public.ps1
+```
+
+需要固定域名时的完整步骤（注册域名 → 命名隧道 → DNS → 开机自启）见 [`deploy/SELF-HOSTING.md`](deploy/SELF-HOSTING.md)。
+
 ## 下一步可做
 
 - [ ] 真实封面图与截图（替换渐变色块）
