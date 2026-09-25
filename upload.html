@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>上传作品 - 小萝莉の资源站</title>
   <meta name="description" content="自己上传 Galgame 作品条目：填写资料、上传封面，保存后立即在站内展示。">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('galgame_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/upload.css">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">

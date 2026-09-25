@@ -86,6 +86,8 @@
     github: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.79 2.73 1.27 3.4.97.11-.76.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.42.36.79 1.08.79 2.18v3.23c0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   };
 
   /* --------------------- 程序化封面（壁纸质感） ---------------------
@@ -193,6 +195,7 @@
             ${ICON.search}
             <input type="search" placeholder="搜索作品…" autocomplete="off" aria-label="搜索作品">
           </form>
+          <button class="icon-btn" id="theme-btn" type="button" title="切换深浅色主题"></button>
           <div class="user-area" id="user-area"></div>
           <a class="icon-btn" href="${SITE.repo}" target="_blank" rel="noopener" title="GitHub 仓库">${ICON.github}</a>
         </div>
@@ -258,11 +261,12 @@
       </div>`;
   }
 
-  function gameCard(g) {
+  function gameCard(g, kw) {
     return `<a class="gcard reveal" href="detail.html?id=${encodeURIComponent(g.id)}">
         ${coverHtml(g, true)}
+        ${favButton(g.id)}
         <div class="gbody">
-          <div class="gtitle">${esc(g.title)}</div>
+          <div class="gtitle">${highlight(g.title, kw)}</div>
           <div class="gstats">${ICON.star} ${g.rating.toFixed(1)} <span class="dot">·</span> ${esc(g.views)}</div>
           <div class="gtags">${[].concat(g.platforms, g.languages).slice(0, 3).map((t) => `<span class="gtag">${esc(t)}</span>`).join('')}</div>
         </div>
@@ -287,7 +291,9 @@
   /* ------------------------------ 筛选与分页 ------------------------------ */
   function filterGames(state) {
     const kw = (state.q || '').trim().toLowerCase();
+    const favIds = state.favOnly ? getFavs() : null;
     const list = GAMES.filter((g) => {
+      if (favIds && favIds.indexOf(g.id) < 0) return false;
       if (state.tag && !g.tags.includes(state.tag)) return false;
       if (state.company && g.circle !== state.company) return false;
       if (state.platform && !g.platforms.includes(state.platform)) return false;
@@ -359,8 +365,50 @@
     els.forEach((el) => io.observe(el));
   }
 
+  function applyTheme(theme) {
+    const t = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('galgame_theme', t); } catch { /* 忽略 */ }
+    const btn = document.querySelector('#theme-btn');
+    if (btn) btn.innerHTML = t === 'light' ? ICON.moon : ICON.sun;
+  }
+
   function initGlobalUI() {
     injectGrainFilter();
+
+    // 深浅色主题
+    let savedTheme = 'dark';
+    try { savedTheme = localStorage.getItem('galgame_theme') || 'dark'; } catch { /* 忽略 */ }
+    applyTheme(savedTheme);
+    const themeBtn = $('#theme-btn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const now = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        applyTheme(now);
+      });
+    }
+
+    // 收藏（事件委托：卡片与详情页通用）
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-fav]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const on = toggleFav(btn.dataset.fav);
+      btn.classList.toggle('on', on);
+      btn.title = on ? '取消收藏' : '收藏';
+      btn.innerHTML = btn.classList.contains('inline')
+        ? FAV_SVG(on) + '<span>' + (on ? '已收藏' : '收藏') + '</span>'
+        : FAV_SVG(on);
+    });
+    // 键盘可达
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const btn = e.target.closest ? e.target.closest('[data-fav]') : null;
+      if (!btn) return;
+      e.preventDefault();
+      btn.click();
+    });
 
     // 顶栏滚动阴影
     const bar = $('#topbar');
@@ -381,6 +429,67 @@
     btn.innerHTML = ICON.up;
     btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
     document.body.appendChild(btn);
+  }
+
+  /* ------------------------------ 本地收藏 ------------------------------ */
+  const FAV_KEY = 'galgame_favs';
+
+  function getFavs() {
+    try {
+      const v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  }
+  function setFavs(list) {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(list)); } catch { /* 隐私模式忽略 */ }
+  }
+  const isFav = (id) => getFavs().indexOf(id) >= 0;
+  function toggleFav(id) {
+    const list = getFavs();
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1); else list.unshift(id);
+    setFavs(list);
+    return i < 0;   // 返回「现在是否已收藏」
+  }
+
+  const FAV_SVG = (on) => `<svg viewBox="0 0 24 24" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21.2l7.7-7.7 1.1-1a5.5 5.5 0 0 0 0-7.9z"/></svg>`;
+
+  function favButton(id, cls) {
+    const on = isFav(id);
+    return `<span class="fav-btn${on ? ' on' : ''}${cls ? ' ' + cls : ''}" role="button" tabindex="0"
+        data-fav="${esc(id)}" title="${on ? '取消收藏' : '收藏'}" aria-label="收藏">${FAV_SVG(on)}</span>`;
+  }
+
+  /* ------------------------------ 搜索历史与高亮 ------------------------------ */
+  const HIST_KEY = 'galgame_history';
+
+  function getHistory() {
+    try {
+      const v = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch { return []; }
+  }
+  function pushHistory(q) {
+    const kw = String(q || '').trim();
+    if (!kw) return;
+    const list = getHistory().filter((x) => x !== kw);
+    list.unshift(kw);
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 10))); } catch { /* 忽略 */ }
+  }
+  function clearHistory() {
+    try { localStorage.removeItem(HIST_KEY); } catch { /* 忽略 */ }
+  }
+
+  // 关键词高亮（先转义再插入 <mark>，避免 XSS）
+  function highlight(text, kw) {
+    const s = String(text == null ? '' : text);
+    const k = String(kw || '').trim();
+    if (!k) return esc(s);
+    const idx = s.toLowerCase().indexOf(k.toLowerCase());
+    if (idx < 0) return esc(s);
+    return esc(s.slice(0, idx)) +
+      '<mark class="hl">' + esc(s.slice(idx, idx + k.length)) + '</mark>' +
+      esc(s.slice(idx + k.length));
   }
 
   /* ------------------------------ 账号 ------------------------------ */
@@ -431,6 +540,94 @@
       }
     } catch { /* 静态托管下没有接口，保持未登录 */ }
     renderAuthUI();
+  }
+
+  /* ------------------------------ 评论 ------------------------------ */
+  async function renderComments(host, targetType, targetId) {
+    if (!host) return;
+    host.innerHTML = '<h3>评论</h3><p class="muted small" style="margin:0">加载中…</p>';
+
+    let list = [];
+    let online = false;
+    try {
+      const res = await fetch(`api/comments?type=${encodeURIComponent(targetType)}&id=${encodeURIComponent(targetId)}`, { cache: 'no-store' });
+      if (res.ok) { list = await res.json(); online = true; }
+    } catch { /* 静态模式 */ }
+
+    if (!online) {
+      host.innerHTML = '<h3>评论</h3><p class="muted small" style="margin:0">当前是静态模式，评论功能需要在本地服务器模式下使用。</p>';
+      return;
+    }
+
+    const me = currentUser;
+    const items = Array.isArray(list) ? list : [];
+
+    host.innerHTML = `
+      <h3>评论 <span class="count" style="font-size:13px;color:var(--muted-2)">${items.length}</span></h3>
+      <div class="comment-list">
+        ${items.length ? items.map((c) => `
+          <div class="comment">
+            <div class="cm-head">
+              <span class="cm-avatar">${esc(String(c.username || '?').slice(0, 1))}</span>
+              <b>${esc(c.username || '匿名')}</b>
+              <span class="cm-date">${esc(String(c.createdAt || '').slice(0, 10).replace(/-/g, '/'))}</span>
+              ${me && (me.id === c.userId || me.username === c.username) ? `<span class="cm-del" data-del="${esc(c.id)}">删除</span>` : ''}
+            </div>
+            <div class="cm-body">${esc(c.content)}</div>
+          </div>`).join('') : '<p class="muted small" style="margin:0">还没有评论，来抢沙发。</p>'}
+      </div>
+      ${me ? `
+        <form class="comment-form">
+          <textarea id="cm-input" rows="3" maxlength="1000" placeholder="以 ${esc(me.username)} 的身份说点什么…"></textarea>
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">发表评论</button>
+            <span class="small muted" id="cm-msg"></span>
+          </div>
+        </form>` : `
+        <p class="small muted" style="margin:0">先 <a href="login.html" style="color:#ffc2d6">登录</a> 才能评论。</p>`}
+    `;
+
+    const form = host.querySelector('.comment-form');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = $('#cm-input');
+        const msg = $('#cm-msg');
+        const content = input.value.trim();
+        if (!content) { msg.textContent = '评论不能为空'; msg.style.color = '#f87171'; return; }
+        msg.textContent = '提交中…';
+        msg.style.color = '';
+        try {
+          const res = await fetch('api/comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+            body: JSON.stringify({ targetType, targetId, content }),
+          });
+          const info = await res.json();
+          if (!info.ok) throw new Error(info.error || '提交失败');
+          renderComments(host, targetType, targetId);
+        } catch (err) {
+          msg.textContent = '失败：' + err.message;
+          msg.style.color = '#f87171';
+        }
+      });
+    }
+
+    host.addEventListener('click', async (e) => {
+      const del = e.target.closest('[data-del]');
+      if (!del) return;
+      if (!confirm('确定删除这条评论？')) return;
+      try {
+        const res = await fetch('api/comment-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+          body: JSON.stringify({ id: del.dataset.del }),
+        });
+        const info = await res.json();
+        if (!info.ok) throw new Error(info.error || '删除失败');
+        renderComments(host, targetType, targetId);
+      } catch (err) { alert('删除失败：' + err.message); }
+    });
   }
 
   /* ------------------------------ QQ 群 ------------------------------ */
@@ -532,6 +729,7 @@
       language: params.get('language') || '',
       sort: params.get('sort') || 'updated',
       page: Number(params.get('page') || 1),
+      favOnly: params.get('fav') === '1',
     };
     const KEYS = ['q', 'tag', 'company', 'platform', 'language'];
 
@@ -567,7 +765,7 @@
       const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       if (state.page > pages) state.page = pages;
       const slice = list.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
-      grid.innerHTML = slice.map(gameCard).join('');
+      grid.innerHTML = slice.map((g) => gameCard(g, state.q)).join('');
       const emptyEl = $('#lib-empty');
       if (total) emptyEl.style.display = 'none';
       else {
@@ -582,7 +780,56 @@
       observeReveal(grid);
     }
 
-    searchInput.addEventListener('input', () => { state.q = searchInput.value; state.page = 1; refresh(); });
+    // 搜索输入（带历史记录）
+    let histTimer = null;
+    searchInput.addEventListener('input', () => {
+      state.q = searchInput.value;
+      state.page = 1;
+      refresh();
+      clearTimeout(histTimer);
+      if (state.q.trim().length >= 2) histTimer = setTimeout(() => pushHistory(state.q), 900);
+    });
+
+    // 搜索历史下拉
+    const histBox = $('#lib-history');
+    if (histBox) {
+      const renderHistory = () => {
+        const list = getHistory();
+        if (!list.length) { histBox.classList.remove('show'); return; }
+        histBox.innerHTML = '<div class="sh-head">最近搜索<span class="sh-clear" id="sh-clear">清空</span></div>' +
+          list.map((h) => `<button class="sh-item" type="button" data-h="${esc(h)}">${esc(h)}</button>`).join('');
+        histBox.classList.add('show');
+      };
+      histBox.addEventListener('click', (e) => {
+        if (e.target.id === 'sh-clear') { clearHistory(); histBox.classList.remove('show'); return; }
+        const item = e.target.closest('[data-h]');
+        if (!item) return;
+        searchInput.value = item.dataset.h;
+        state.q = item.dataset.h;
+        state.page = 1;
+        histBox.classList.remove('show');
+        refresh();
+      });
+      searchInput.addEventListener('focus', renderHistory);
+      searchInput.addEventListener('blur', () => setTimeout(() => histBox.classList.remove('show'), 180));
+    }
+
+    // 只看收藏
+    const favBtn = $('#lib-fav-btn');
+    if (favBtn) {
+      const syncFavBtn = () => {
+        favBtn.classList.toggle('on', !!state.favOnly);
+        favBtn.innerHTML = (state.favOnly ? '♥' : '♡') + ' 只看收藏 (' + getFavs().length + ')';
+      };
+      syncFavBtn();
+      favBtn.addEventListener('click', () => {
+        state.favOnly = !state.favOnly;
+        state.page = 1;
+        syncFavBtn();
+        refresh();
+      });
+    }
+
     companySel.addEventListener('change', () => { state.company = companySel.value; state.page = 1; refresh(); });
     platformSel.addEventListener('change', () => { state.platform = platformSel.value; state.page = 1; refresh(); });
     langSel.addEventListener('change', () => { state.language = langSel.value; state.page = 1; refresh(); });
@@ -630,6 +877,8 @@
           </div>
           <div class="actions">
             <a class="btn btn-primary" href="#downloads">查看下载 / 版本</a>
+            <span class="fav-btn inline" role="button" tabindex="0" data-fav="${esc(g.id)}"
+                  title="${isFav(g.id) ? '取消收藏' : '收藏'}">${FAV_SVG(isFav(g.id))}<span>${isFav(g.id) ? '已收藏' : '收藏'}</span></span>
             <a class="btn" href="galgame.html?tag=${encodeURIComponent(g.tags[0] || '')}">找同类作品</a>
           </div>
         </div>
@@ -671,12 +920,15 @@
 
       ${posts.length ? `<div class="panel"><h3>相关资源</h3>${posts.map(listRow).join('')}</div>` : ''}
 
+      <div class="panel" id="comments"></div>
+
       ${related.length ? `<div class="section">
         <div class="section-head"><h2>相关作品</h2><a class="more" href="galgame.html">浏览全部 →</a></div>
-        <div class="ggrid">${related.map(gameCard).join('')}</div>
+        <div class="ggrid">${related.map((r) => gameCard(r)).join('')}</div>
       </div>` : ''}
     `;
     observeReveal(host);
+    renderComments($('#comments'), 'game', g.id);
   }
 
   function tagPill(t) {
@@ -833,7 +1085,10 @@
       <div class="panel" style="margin-top:28px">
         <h3>相关推荐</h3>
         ${POSTS.filter((x) => x.id !== p.id && x.category === p.category).slice(0, 3).map(listRow).join('') || '<p class="muted small">暂无</p>'}
-      </div>`;
+      </div>
+      <div class="panel" id="comments"></div>`;
+
+    renderComments($('#comments'), 'post', p.id);
   }
 
   function initDoc() {

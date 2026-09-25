@@ -23,6 +23,7 @@ const ROOT = path.resolve(process.argv[3] || path.join(__dirname, '..'));
 const DATA_DIR = path.join(ROOT, 'data');
 const GAMES_FILE = path.join(DATA_DIR, 'games.json');
 const POSTS_FILE = path.join(DATA_DIR, 'posts.json');
+const COMMENTS_FILE = path.join(DATA_DIR, 'comments.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const CODES_FILE = path.join(DATA_DIR, 'codes.json');
@@ -525,6 +526,179 @@ function handleUploadPost(req, res) {
   }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
 }
 
+/* ------------------------------ 评论 ------------------------------ */
+function handleGetComments(req, res, query) {
+  const type = String(query.get('type') || 'game');
+  const id = String(query.get('id') || '');
+  if (!id) return sendJson(res, 400, { ok: false, error: '缺少目标 id' });
+  const list = readJson(COMMENTS_FILE, [])
+    .filter((c) => c.targetType === type && c.targetId === id)
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  sendJson(res, 200, list);
+}
+
+function handleAddComment(req, res) {
+  const user = getSessionUser(req);
+  if (!user) return sendJson(res, 401, { ok: false, error: '请先登录后再评论' });
+
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const targetType = String(body.targetType || 'game');
+    const targetId = String(body.targetId || '');
+    const content = String(body.content || '').trim();
+
+    if (!targetId) return sendJson(res, 400, { ok: false, error: '缺少评论目标' });
+    if (content.length < 1 || content.length > 1000) {
+      return sendJson(res, 400, { ok: false, error: '评论长度需在 1–1000 字之间' });
+    }
+
+    const comment = {
+      id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      targetType,
+      targetId,
+      userId: user.id,
+      username: user.username,
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    const list = readJson(COMMENTS_FILE, []);
+    list.push(comment);
+    writeJson(COMMENTS_FILE, list);
+    console.log(`[comment] ${user.username} 评论了 ${targetType}:${targetId}`);
+    sendJson(res, 200, { ok: true, comment });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
+function handleDeleteComment(req, res) {
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: '数据格式错误' }); }
+
+    const id = String(body.id || '');
+    const list = readJson(COMMENTS_FILE, []);
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx < 0) return sendJson(res, 404, { ok: false, error: '评论不存在' });
+
+    const user = getSessionUser(req);
+    const isOwner = user && list[idx].userId === user.id;
+    if (!isOwner && !isLocalRequest(req)) {
+      return sendJson(res, 403, { ok: false, error: '只能删除自己的评论' });
+    }
+    list.splice(idx, 1);
+    writeJson(COMMENTS_FILE, list);
+    sendJson(res, 200, { ok: true });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
+/* ------------------------------ 数据导入 ------------------------------ */
+function normalizeImported(item, kind) {
+  if (!item || typeof item !== 'object') return null;
+  const title = String(item.title || '').trim();
+  if (!title) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const id = String(item.id || '').trim() ||
+    (kind === 'game' ? 'u' : 'p') + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+  if (kind === 'game') {
+    return {
+      id, title,
+      originalTitle: String(item.originalTitle || title),
+      circle: String(item.circle || '未填写'),
+      releaseDate: String(item.releaseDate || today).slice(0, 10),
+      updatedAt: String(item.updatedAt || today).slice(0, 10),
+      rating: Math.min(10, Math.max(0, Number(item.rating) || 0)),
+      views: String(item.views || '0'),
+      tags: toArray(item.tags, ['未分类']),
+      platforms: toArray(item.platforms, ['PC']),
+      languages: toArray(item.languages, ['官方中文']),
+      size: String(item.size || '未知'),
+      version: String(item.version || 'v1.0'),
+      isNew: !!item.isNew,
+      cover: item.cover && typeof item.cover === 'object'
+        ? { hue: Number(item.cover.hue) || 335, glyph: String(item.cover.glyph || title.slice(0, 1)) }
+        : { hue: 335, glyph: title.slice(0, 1) },
+      summary: String(item.summary || '（暂无简介）'),
+      screenshots: toArray(item.screenshots, []),
+      downloads: Array.isArray(item.downloads)
+        ? item.downloads.map((d) => ({
+            label: String(d.label || '下载'), url: String(d.url || '#'), code: String(d.code || '—'),
+          }))
+        : [],
+      file: item.file && item.file.url
+        ? { name: String(item.file.name || ''), size: Number(item.file.size) || 0, url: String(item.file.url) }
+        : null,
+      uploadedAt: String(item.uploadedAt || new Date().toISOString()),
+    };
+  }
+
+  const body = Array.isArray(item.body)
+    ? item.body.map((s) => String(s).trim()).filter(Boolean)
+    : String(item.body || '').split('\n').map((s) => s.trim()).filter(Boolean);
+
+  return {
+    id, title,
+    category: POST_CATEGORIES.includes(item.category) ? item.category : '资讯',
+    gameId: item.gameId ? String(item.gameId) : null,
+    author: String(item.author || '站长'),
+    date: String(item.date || today).slice(0, 10),
+    views: String(item.views || '0'),
+    tags: toArray(item.tags, ['资讯']),
+    excerpt: String(item.excerpt || ''),
+    body,
+  };
+}
+
+function handleImport(req, res) {
+  if (!isLocalRequest(req)) {
+    return sendJson(res, 403, { ok: false, error: '导入仅允许通过 localhost 访问' });
+  }
+
+  return readBody(req).then((buf) => {
+    let body;
+    try { body = JSON.parse(buf.toString('utf8')); } catch { return sendJson(res, 400, { ok: false, error: 'JSON 解析失败' }); }
+
+    const mode = body.mode === 'replace' ? 'replace' : 'merge';
+    const inGames = Array.isArray(body.games) ? body.games : [];
+    const inPosts = Array.isArray(body.posts) ? body.posts : [];
+
+    const games = inGames.map((g) => normalizeImported(g, 'game')).filter(Boolean);
+    const posts = inPosts.map((p) => normalizeImported(p, 'post')).filter(Boolean);
+
+    if (!games.length && !posts.length) {
+      return sendJson(res, 400, { ok: false, error: '文件里没有可导入的作品或资源（每条都要有 title 字段）' });
+    }
+
+    let totalGames;
+    let totalPosts;
+    if (mode === 'replace') {
+      writeJson(GAMES_FILE, games);
+      writeJson(POSTS_FILE, posts);
+      totalGames = games.length;
+      totalPosts = posts.length;
+    } else {
+      const curGames = readJson(GAMES_FILE, []);
+      const curPosts = readJson(POSTS_FILE, []);
+      const gIds = new Set(curGames.map((g) => g.id));
+      const pIds = new Set(curPosts.map((p) => p.id));
+      games.forEach((g) => { if (!gIds.has(g.id)) curGames.push(g); });
+      posts.forEach((p) => { if (!pIds.has(p.id)) curPosts.push(p); });
+      writeJson(GAMES_FILE, curGames);
+      writeJson(POSTS_FILE, curPosts);
+      totalGames = curGames.length;
+      totalPosts = curPosts.length;
+    }
+
+    console.log(`[import] ${mode}：作品 +${games.length}，资源 +${posts.length}`);
+    sendJson(res, 200, {
+      ok: true, mode,
+      importedGames: games.length, importedPosts: posts.length,
+      games: totalGames, posts: totalPosts,
+    });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
 /* ------------------------------ 管理：编辑 / 删除 ------------------------------ */
 function removeFileIfInside(dir, relUrl) {
   try {
@@ -790,6 +964,18 @@ http.createServer((req, res) => {
   }
   if (urlPath === '/api/manage' && req.method === 'POST') {
     return handleManage(req, res);
+  }
+  if (urlPath === '/api/comments' && req.method === 'GET') {
+    return handleGetComments(req, res, query);
+  }
+  if (urlPath === '/api/comment' && req.method === 'POST') {
+    return handleAddComment(req, res);
+  }
+  if (urlPath === '/api/comment-delete' && req.method === 'POST') {
+    return handleDeleteComment(req, res);
+  }
+  if (urlPath === '/api/import' && req.method === 'POST') {
+    return handleImport(req, res);
   }
   if (urlPath === '/api/files' && req.method === 'GET') {
     return sendJson(res, 200, listFiles());

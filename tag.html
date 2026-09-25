@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>标签 - 小萝莉の资源站</title>
   <meta name="description" content="按标签浏览 Galgame：恋爱、治愈、悬疑、剧情、日常……">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('galgame_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff7aa2">

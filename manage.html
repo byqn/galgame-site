@@ -7,6 +7,14 @@
   <meta name="description" content="管理已上传的作品与资源：编辑、删除。">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff7aa2">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('galgame_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="stylesheet" href="assets/css/upload.css">
 </head>
@@ -24,6 +32,14 @@
       <div class="auth-tabs" id="mg-tabs" style="max-width:430px;margin-bottom:16px">
         <button type="button" data-tab="games" class="on">作品</button>
         <button type="button" data-tab="posts">资源 / 教程</button>
+      </div>
+
+      <div class="toolbar" style="margin-bottom:16px">
+        <span style="font-size:13px;color:var(--muted-2)">数据备份：</span>
+        <button class="btn" type="button" id="mg-export">导出 JSON</button>
+        <button class="btn" type="button" id="mg-import-btn">导入 JSON</button>
+        <input type="file" id="mg-import-file" accept=".json,application/json" hidden>
+        <span class="small muted" id="mg-io-msg"></span>
       </div>
 
       <div id="mg-tip" class="notice-bar" style="display:none"></div>

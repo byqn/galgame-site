@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>登录 / 注册 - 小萝莉の资源站</title>
   <meta name="description" content="注册或登录 小萝莉の资源站账号。">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('galgame_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff7aa2">

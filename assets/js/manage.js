@@ -189,6 +189,79 @@
     });
   }
 
+  /* ---------- 导出 / 导入 ---------- */
+  async function exportJson() {
+    const msg = $('#mg-io-msg');
+    msg.textContent = '导出中…';
+    msg.style.color = '';
+    try {
+      const data = {
+        exportedAt: new Date().toISOString(),
+        site: '小萝莉の资源站',
+        games,
+        posts,
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'galgame-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      msg.textContent = `已导出 ${games.length} 部作品、${posts.length} 条资源`;
+      msg.style.color = '#6ee7b7';
+    } catch (err) {
+      msg.textContent = '导出失败：' + err.message;
+      msg.style.color = '#f87171';
+    }
+  }
+
+  async function importJson(file) {
+    const msg = $('#mg-io-msg');
+    msg.textContent = '导入中…';
+    msg.style.color = '';
+    try {
+      const data = JSON.parse(await file.text());
+      const gCount = Array.isArray(data.games) ? data.games.length : 0;
+      const pCount = Array.isArray(data.posts) ? data.posts.length : 0;
+
+      const merge = confirm(
+        `文件里有 ${gCount} 部作品、${pCount} 条资源。\n\n` +
+        '点「确定」= 合并（保留现有内容，只追加新条目）\n' +
+        '点「取消」= 覆盖（清空现有内容后导入）'
+      );
+
+      const res = await fetch('api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: merge ? 'merge' : 'replace', games: data.games || [], posts: data.posts || [] }),
+      });
+      const info = await res.json();
+      if (!info.ok) throw new Error(info.error || '导入失败');
+      msg.textContent = `导入成功（${info.mode === 'replace' ? '覆盖' : '合并'}）：现有作品 ${info.games} 部、资源 ${info.posts} 条`;
+      msg.style.color = '#6ee7b7';
+      await load();
+      renderList();
+    } catch (err) {
+      msg.textContent = '导入失败：' + err.message;
+      msg.style.color = '#f87171';
+    }
+  }
+
+  const exportBtn = $('#mg-export');
+  if (exportBtn) exportBtn.addEventListener('click', exportJson);
+  const importBtn = $('#mg-import-btn');
+  const importFile = $('#mg-import-file');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) importJson(f);
+      e.target.value = '';
+    });
+  }
+
   /* ---------- 事件 ---------- */
   document.querySelectorAll('#mg-tabs button').forEach((b) => {
     b.addEventListener('click', () => {

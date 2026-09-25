@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Galgame 资源库 - 小萝莉の资源站</title>
   <meta name="description" content="全部作品索引：关键词搜索，按标签、会社、平台、语言筛选，支持更新时间/评分/发售日排序。">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('galgame_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { }
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#ff7aa2">
@@ -27,7 +35,11 @@
       </div>
 
       <div class="toolbar">
-        <input id="lib-search" type="search" placeholder="搜索作品名 / 原题 / 会社 / 简介…" autocomplete="off">
+        <div class="search-wrap">
+          <input id="lib-search" type="search" placeholder="搜索作品名 / 原题 / 会社 / 简介…" autocomplete="off">
+          <div class="search-history" id="lib-history"></div>
+        </div>
+        <button class="btn" type="button" id="lib-fav-btn">♡ 只看收藏 (0)</button>
         <select id="lib-company" aria-label="会社"></select>
         <select id="lib-platform" aria-label="平台"></select>
         <select id="lib-language" aria-label="语言"></select>
