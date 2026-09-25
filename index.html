@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>首页 - Galgame 资源站</title>
+  <meta name="description" content="Galgame 作品索引、攻略与资讯整理，支持搜索、标签筛选与版本查询。">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="home">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>找游戏、看攻略，<span>少走弯路</span></h1>
+      <p>
+        目前收录 <b id="stat-games">0</b> 部作品、<b id="stat-posts">0</b> 篇攻略与资讯。
+        支持按标题、社团、标签检索，详情页可查版本、语言与相关攻略。
+      </p>
+      <form class="searchbar" id="home-search">
+        <input id="home-search-input" type="search" placeholder="搜索作品名 / 原题 / 社团 / 标签…" autocomplete="off">
+        <button class="btn btn-primary" type="submit">搜索</button>
+      </form>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>最近更新</h2>
+        <a class="more" href="library.html?sort=updated">查看全部 →</a>
+      </div>
+      <div class="grid" id="latest-grid"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>高分推荐</h2>
+        <a class="more" href="library.html?sort=rating">更多高分作品 →</a>
+      </div>
+      <div class="grid" id="top-grid"></div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>攻略与资讯</h2>
+        <a class="more" href="guides.html">全部文章 →</a>
+      </div>
+      <div class="post-list" id="home-posts"></div>
+    </section>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+</body>
+</html>

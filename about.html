@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>关于本站 - Galgame 资源站</title>
+  <meta name="description" content="本站说明、内容更新方式与免责声明。">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body data-page="about">
+  <header id="site-header"></header>
+
+  <main class="container">
+    <article class="article">
+      <h1>关于本站</h1>
+      <p class="post-meta">一个用纯 HTML / CSS / JavaScript 搭起来的静态站点。</p>
+
+      <h2>这个站是做什么的</h2>
+      <p>整理 Galgame 作品信息、攻略与资讯，方便按标签和关键词快速找到想玩的东西。所有数据都放在一个文件里，改内容不需要动页面代码，也不需要任何后端。</p>
+
+      <h2>怎么更新内容</h2>
+      <ul>
+        <li>作品数据：编辑 <code>assets/js/data.js</code> 里的 <code>games</code> 数组，复制一段已有条目改字段即可。</li>
+        <li>攻略 / 资讯：编辑同一个文件的 <code>posts</code> 数组；<code>body</code> 里以 <code>## </code> 开头的行会渲染成小标题，以 <code>- </code> 开头的行会渲染成列表。</li>
+        <li>封面图：暂时用 CSS 渐变色块 + 文字占位，<code>cover.hue</code> 控制色调。以后要换真实封面，把图片放进 <code>assets/img/</code>，再改 <code>common.js</code> 里的 <code>coverHtml()</code> 即可。</li>
+      </ul>
+
+      <h2>技术说明</h2>
+      <ul>
+        <li>纯静态：不需要构建、不需要 Node 服务，双击 <code>index.html</code> 就能看。</li>
+        <li>数据用 <code>&lt;script&gt;</code> 引入而不是 <code>fetch</code>，所以用 <code>file://</code> 直接打开也不会被浏览器的跨域策略拦住。</li>
+        <li>页面：首页、资源库、作品详情、攻略列表、文章详情、关于，共 6 个页面。</li>
+        <li>搜索、标签筛选、排序、分类全部在前端完成，数据量大到几千条也不会有压力。</li>
+      </ul>
+
+      <h2>部署到 GitHub Pages</h2>
+      <ul>
+        <li>仓库 Settings → Pages → Source 选择 <code>main</code> 分支的 <code>/ (root)</code>，保存后即可通过 <code>https://byqn.github.io/galgame-site/</code> 访问。</li>
+        <li>也可以直接部署到任意静态托管（Cloudflare Pages、Vercel、Netlify）。</li>
+      </ul>
+
+      <h2>免责声明</h2>
+      <p>本站仅整理公开的作品信息与原创攻略内容。页面中的下载地址全部是占位符（<code>#</code>），请在替换为任何实际链接前，确认你拥有相应的分发权利。请支持正版，通过官方渠道购买游戏。</p>
+    </article>
+  </main>
+
+  <footer id="site-footer"></footer>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/common.js"></script>
+</body>
+</html>
