@@ -6,8 +6,9 @@
 (function () {
   const D = window.SITE_DATA;
   const BUILTIN_GAMES = D.games || [];
+  const BUILTIN_POSTS = D.posts || [];
   let GAMES = BUILTIN_GAMES.slice();   // 运行时会把「自己上传的作品」合并进来
-  const POSTS = D.posts;
+  let POSTS = BUILTIN_POSTS.slice();   // 同上：资源与教程
   const NOTICES = D.notices || [];
   const SITE = D.site;
   const PAGE_SIZE = 12;
@@ -32,6 +33,7 @@
   }
   const getGame = (id) => GAMES.find((g) => g.id === id) || null;
   const getPost = (id) => POSTS.find((p) => p.id === id) || null;
+  const postsOfGame = (gameId) => POSTS.filter((p) => p.gameId === gameId);
 
   function hash(str) {
     let h = 2166136261;
@@ -517,11 +519,6 @@
     setText('#q-games', GAMES.length + ' 部作品');
     setText('#q-tag', allTags().length + ' 个标签');
     setText('#q-company', allCompanies().length + ' 家公司');
-
-    const pl = $('#patch-list');
-    if (pl) pl.innerHTML = POSTS.filter((p) => p.category === '补丁').slice(0, 6).map(listRow).join('') || emptyHtml();
-
-    setText('#stat-posts', POSTS.length);
   }
 
   function initLibrary() {
@@ -785,7 +782,14 @@
         return [p.title, p.excerpt, p.tags.join(' ')].join(' ').toLowerCase().includes(kw);
       }).sort((a, b) => b.date.localeCompare(a.date));
       list.innerHTML = items.map(listRow).join('');
-      $('#res-empty').style.display = items.length ? 'none' : 'block';
+      const emptyEl = $('#res-empty');
+      if (items.length) emptyEl.style.display = 'none';
+      else {
+        emptyEl.style.display = 'block';
+        emptyEl.innerHTML = POSTS.length
+          ? '没有符合条件的条目。'
+          : '还没有发布任何资源。<a href="upload.html#post" style="color:#ffd6e4">去发布第一条 →</a>';
+      }
       count.textContent = `共 ${items.length} 条`;
     }
     input.addEventListener('input', () => { state.q = input.value; refresh(); });
@@ -795,6 +799,17 @@
   function initPost() {
     const id = new URLSearchParams(location.search).get('id');
     const p = getPost(id) || POSTS[0];
+    if (!p) {
+      document.title = `资源不存在 - ${SITE.name}`;
+      $('#article').innerHTML = `
+        <div class="crumbs"><a href="index.html">首页</a> / <a href="resource.html">资源</a> / 未找到</div>
+        <div class="empty">
+          这条资源不存在或已被删除。<br>
+          <a class="btn" href="resource.html" style="margin-top:16px">返回资源列表</a>
+          <a class="btn btn-primary" href="upload.html#post" style="margin-top:16px">发布一条资源</a>
+        </div>`;
+      return;
+    }
     const g = p.gameId ? getGame(p.gameId) : null;
     document.title = `${p.title} - ${SITE.name}`;
 
@@ -847,7 +862,7 @@
   async function init() {
     const page = document.body.dataset.page || '';
 
-    // 合并「自己上传的作品」：读取 data/games.json（静态托管下没有该文件会静默跳过）
+    // 合并「自己上传的内容」：读取 data/games.json 与 data/posts.json（静态托管下没有文件会静默跳过）
     try {
       const res = await fetch('data/games.json', { cache: 'no-store' });
       if (res.ok) {
@@ -855,6 +870,14 @@
         if (Array.isArray(uploaded) && uploaded.length) GAMES = uploaded.concat(BUILTIN_GAMES);
       }
     } catch { /* file:// 或静态模式，忽略 */ }
+
+    try {
+      const res = await fetch('data/posts.json', { cache: 'no-store' });
+      if (res.ok) {
+        const uploaded = await res.json();
+        if (Array.isArray(uploaded) && uploaded.length) POSTS = uploaded.concat(BUILTIN_POSTS);
+      }
+    } catch { /* 同上 */ }
 
     renderHeader(page);
     renderFooter();
@@ -868,6 +891,17 @@
     (routes[page] || function () {})();
     observeReveal(document);
   }
+
+  // 对外暴露常用工具与数据，供上传页 / 登录页等复用
+  window.SITE = {
+    $, $$, esc, fmtDate, fmtSize, hash,
+    getGame, getPost, postsOfGame,
+    gameCard, listRow, coverHtml, coverArt,
+    filterGames, allTags, allCompanies,
+    observeReveal,
+    get games() { return GAMES; },
+    get posts() { return POSTS; },
+  };
 
   document.addEventListener('DOMContentLoaded', init);
 })();

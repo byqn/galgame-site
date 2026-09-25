@@ -19,7 +19,14 @@
         <a class="more" href="galgame.html">查看作品库 →</a>
       </div>
 
+      <div class="auth-tabs" id="upload-tabs" style="max-width:460px;margin-bottom:18px">
+        <button type="button" data-tab="game" class="on">上传作品</button>
+        <button type="button" data-tab="post">发布资源 / 教程</button>
+      </div>
+
       <div id="mode-tip" class="notice-bar" style="display:none"></div>
+
+      <div id="tab-game">
 
       <form id="upload-form" class="panel upload-form" style="margin-top:0" autocomplete="off">
         <div class="upload-grid">
@@ -116,6 +123,60 @@
           </div>
         </div>
       </form>
+      </div><!-- /tab-game -->
+
+      <!-- 发布资源 / 教程 -->
+      <div id="tab-post" hidden>
+        <form id="post-form" class="panel upload-form" style="margin-top:0" autocomplete="off">
+          <div class="field-col">
+            <div class="field-row">
+              <label>标题 <i>*</i>
+                <input type="text" id="p-title" placeholder="例如：XX 系列 Win11 修复补丁">
+              </label>
+              <label>分类
+                <select id="p-category">
+                  <option value="补丁">补丁</option>
+                  <option value="教程">教程</option>
+                  <option value="资讯">资讯</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>关联作品（可选）
+                <select id="p-game"><option value="">不关联</option></select>
+              </label>
+              <label>作者
+                <input type="text" id="p-author" placeholder="站长">
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>标签（逗号分隔）
+                <input type="text" id="p-tags" placeholder="补丁, 兼容性, Win11">
+              </label>
+            </div>
+
+            <div class="field-row full">
+              <label>摘要（列表里显示的一句话，留空则自动取正文首行）
+                <input type="text" id="p-excerpt" placeholder="一句话说明这条资源解决什么问题">
+              </label>
+            </div>
+
+            <div class="field-row full">
+              <label>正文 <i>*</i>
+                <textarea id="p-body" rows="12" placeholder="每行一段。&#10;以 ## 开头 → 渲染成小标题&#10;以 - 开头 → 渲染成列表项"></textarea>
+              </label>
+            </div>
+
+            <div class="upload-actions">
+              <button type="submit" class="btn btn-primary" id="post-submit">发布</button>
+              <button type="reset" class="btn">清空</button>
+              <span class="small muted" id="post-msg"></span>
+            </div>
+          </div>
+        </form>
+      </div>
 
       <div class="panel">
         <h3>说明</h3>

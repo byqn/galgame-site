@@ -65,6 +65,16 @@
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   resize: vertical;
 }
+.upload-form select {
+  display: block; width: 100%; margin-top: 6px;
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--text);
+  padding: 9px 12px; border-radius: 10px; font-size: 14px; font-family: inherit;
+  outline: none; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-form select:focus { border-color: rgba(255, 122, 162, 0.55); }
+.upload-form select option { background: var(--card-2); }
+
 .upload-form input:focus, .upload-form textarea:focus {
   border-color: rgba(255, 122, 162, 0.55);
   background: var(--card);

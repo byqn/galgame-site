@@ -223,7 +223,82 @@
     };
   }
 
-  /* ---------- 提交 ---------- */
+  /* ---------- Tab 切换：上传作品 / 发布资源 ---------- */
+  function switchTab(tab) {
+    const isPost = tab === 'post';
+    const gameBox = $('#tab-game');
+    const postBox = $('#tab-post');
+    if (gameBox) gameBox.hidden = isPost;
+    if (postBox) postBox.hidden = !isPost;
+    document.querySelectorAll('#upload-tabs button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.tab === tab);
+    });
+    if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab);
+    if (isPost) fillGameOptions();
+  }
+
+  document.querySelectorAll('#upload-tabs button').forEach((b) => {
+    b.addEventListener('click', () => switchTab(b.dataset.tab));
+  });
+  if (location.hash === '#post') switchTab('post');
+
+  /* ---------- 发布资源 / 教程 ---------- */
+  function setPostMsg(text, kind) {
+    const el = $('#post-msg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = kind === 'error' ? '#f87171' : kind === 'ok' ? '#6ee7b7' : '';
+  }
+
+  // 关联作品下拉：读取已加载的作品列表
+  function fillGameOptions() {
+    const sel = $('#p-game');
+    if (!sel) return;
+    const games = (window.SITE && window.SITE.games) || [];
+    sel.innerHTML = '<option value="">不关联</option>' +
+      games.map((g) => `<option value="${g.id}">${g.title}</option>`).join('');
+  }
+  fillGameOptions();
+
+  const postForm = $('#post-form');
+  if (postForm) {
+    postForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!serverMode) { setPostMsg('当前不可发布，请用本地服务器模式打开', 'error'); return; }
+
+      const post = {
+        title: $('#p-title').value.trim(),
+        category: $('#p-category').value,
+        gameId: $('#p-game').value || null,
+        author: $('#p-author').value.trim(),
+        tags: $('#p-tags').value,
+        excerpt: $('#p-excerpt').value.trim(),
+        body: $('#p-body').value,
+      };
+      if (!post.title) { setPostMsg('标题不能为空', 'error'); $('#p-title').focus(); return; }
+      if (!post.body.trim()) { setPostMsg('正文不能为空', 'error'); $('#p-body').focus(); return; }
+
+      const btn = $('#post-submit');
+      btn.disabled = true;
+      setPostMsg('发布中…');
+      try {
+        const res = await fetch('api/upload-post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ post }),
+        });
+        const info = await res.json();
+        if (!info.ok) throw new Error(info.error || '发布失败');
+        setPostMsg('发布成功！正在跳转…', 'ok');
+        setTimeout(() => { location.href = 'post.html?id=' + encodeURIComponent(info.id); }, 900);
+      } catch (err) {
+        setPostMsg('发布失败：' + err.message, 'error');
+        btn.disabled = false;
+      }
+    });
+  }
+
+  /* ---------- 提交作品 ---------- */
   $('#upload-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!serverMode) { setMsg('当前不可上传，请用本地服务器模式打开', 'error'); return; }

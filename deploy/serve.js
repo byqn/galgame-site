@@ -22,6 +22,7 @@ const PORT = Number(process.argv[2] || 8080);
 const ROOT = path.resolve(process.argv[3] || path.join(__dirname, '..'));
 const DATA_DIR = path.join(ROOT, 'data');
 const GAMES_FILE = path.join(DATA_DIR, 'games.json');
+const POSTS_FILE = path.join(DATA_DIR, 'posts.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const COVER_DIR = path.join(ROOT, 'assets', 'img', 'covers');
@@ -299,6 +300,48 @@ function handleUpload(req, res) {
   }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
 }
 
+/* ------------------------------ 发布资源 / 教程 ------------------------------ */
+const POST_CATEGORIES = ['补丁', '教程', '资讯'];
+
+function handleUploadPost(req, res) {
+  if (!isLocalRequest(req)) {
+    return sendJson(res, 403, { ok: false, error: '发布接口仅允许通过 localhost 访问' });
+  }
+
+  return readBody(req).then((buf) => {
+    let payload;
+    try { payload = JSON.parse(buf.toString('utf8')); } catch (e) { return sendJson(res, 400, { ok: false, error: '数据解析失败：' + e.message }); }
+
+    const p = (payload && payload.post) || {};
+    const title = String(p.title || '').trim();
+    if (!title) return sendJson(res, 400, { ok: false, error: '标题不能为空' });
+
+    const rawBody = Array.isArray(p.body) ? p.body : String(p.body || '').split('\n');
+    const body = rawBody.map((s) => String(s).trim()).filter(Boolean);
+    if (!body.length) return sendJson(res, 400, { ok: false, error: '正文不能为空' });
+
+    const post = {
+      id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      title,
+      category: POST_CATEGORIES.includes(p.category) ? p.category : '资讯',
+      gameId: p.gameId ? String(p.gameId) : null,
+      author: String(p.author || '站长').trim() || '站长',
+      date: new Date().toISOString().slice(0, 10),
+      views: '0',
+      tags: toArray(p.tags, [POST_CATEGORIES.includes(p.category) ? p.category : '资讯']),
+      excerpt: String(p.excerpt || '').trim() || body[0].replace(/^#+\s*/, '').slice(0, 60),
+      body,
+    };
+
+    const list = readJson(POSTS_FILE, []);
+    list.unshift(post);
+    writeJson(POSTS_FILE, list);
+
+    console.log(`[post] 新增资源「${title}」(${post.category}) 总计=${list.length}`);
+    sendJson(res, 200, { ok: true, id: post.id, total: list.length });
+  }).catch((e) => sendJson(res, 400, { ok: false, error: e.message }));
+}
+
 /* ------------------------------ 文件上传（流式） ------------------------------ */
 function safeFileName(name) {
   const base = path.basename(String(name || 'file')).replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
@@ -446,12 +489,19 @@ http.createServer((req, res) => {
       mode: 'server',
       local: isLocalRequest(req),
       games: readJson(GAMES_FILE, []).length,
+      posts: readJson(POSTS_FILE, []).length,
       users: readJson(USERS_FILE, []).length,
       files: listFiles().length,
     });
   }
   if (urlPath === '/api/games' && req.method === 'GET') {
     return sendJson(res, 200, readJson(GAMES_FILE, []));
+  }
+  if (urlPath === '/api/posts' && req.method === 'GET') {
+    return sendJson(res, 200, readJson(POSTS_FILE, []));
+  }
+  if (urlPath === '/api/upload-post' && req.method === 'POST') {
+    return handleUploadPost(req, res).catch((e) => sendJson(res, 500, { ok: false, error: e.message }));
   }
   if (urlPath === '/api/files' && req.method === 'GET') {
     return sendJson(res, 200, listFiles());
